@@ -1,0 +1,36 @@
+# Build artifacts
+*.o
+*.a
+*.so
+_TREE
+_CODE
+_*
+
+# Parser generated files
+tiny/parser/y.tab.c
+tiny/parser/y.tab.h
+tiny/parser/y.output
+tiny/parser/lex.yy.c
+tiny/parser/code.y
+tiny/parser/parse
+
+# Executables
+tiny/Constrain
+tiny/CodeGen
+tiny/tc
+tiny/tc_parse
+tiny/tc_parse_cons
+tiny/tc_parse_cons_codegen
+
+# Editor backup files
+*~
+*.swp
+*.swo
+.*.swp
+
+# Core dumps
+core
+core.*
+
+# Test outputs
+*.out

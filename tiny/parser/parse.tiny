@@ -1,0 +1,59 @@
+%%
+Tiny       -> PROGRAM Name ':' Dclns Body Name '.' 	=> "program";
+Dclns      -> VAR (Dcln ';')*				=> "dclns"
+           -> 					     	=> "dclns";
+Dcln       -> Name list ',' ':' Type			=> "dcln";
+Type       -> INTEGER 		             		=> "integer"
+           -> BOOLEAN				     	=> "boolean";
+Body       -> BEGINX Statement list ';' END      	=> "block";
+
+Statement  -> Name ASSIGNMENT Relational         	=> "assign"
+           -> OUTPUT '(' Relational list ',' ')'    => "output"
+           -> IF Relational THEN Statement (ELSE Statement)? => "if"
+           -> WHILE Relational DO Statement         => "while"
+           -> FOR Name ASSIGNMENT Expression TO Expression DO Statement     => "for"
+           -> FOR Name ASSIGNMENT Expression DOWNTO Expression DO Statement => "downto"
+           -> REPEAT (Statement list ';') UNTIL Relational => "repeat"
+           -> LOOP (Statement list ';') POOL         => "loop"
+           -> EXIT                                   => "exit"
+           -> CASE Expression OF CaseBranch list ';' END => "case"
+           -> Body
+           ->                                       => "<null>";
+
+
+Name       -> IDENTIFIER				=> "<identifier>";
+
+Relational -> Expression
+           -> Expression LTE Expression                => "<="
+           -> Expression '=' Expression                => "="
+           -> Expression NEQ Expression                => "<>"
+           -> Expression GE Expression                 => ">="
+           -> Expression '<' Expression                => "<"
+           -> Expression '>' Expression                => ">";
+
+Expression -> Term
+           -> Expression '+' Term                   => "+"
+           -> Expression '-' Term                   => "-"
+           -> Expression OR Term                    => "or";
+
+Term       -> Unary
+           -> Term '*' Unary                        => "*"
+           -> Term '/' Unary                        => "/"
+           -> Term AND Unary                        => "and"
+           -> Term MOD Unary                        => "mod";
+
+Unary      -> '+' Unary                             => "+"
+           -> '-' Unary                             => "-"
+           -> NOT Unary                             => "not"
+           -> Factor;
+
+Factor     -> Primary POW Factor                    => "**"
+           -> Primary;
+
+Primary    -> READ                                  => "read"
+           -> EOF_KWD                               => "eof"
+           -> TRUE_KWD                              => "true"
+           -> FALSE_KWD                             => "false"
+           -> Name
+           -> INTEGER_NUM                           => "<integer>"
+           -> '(' Relational ')';

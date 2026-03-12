@@ -1,0 +1,40 @@
+program productrange:
+var n,m,product,current,i,tempproduct,j,start,end,temp:integer;
+begin
+   n := read;
+   m := read;
+   
+   product := 1;
+   
+   start := n;
+   end := m;
+   
+   while m <= n do
+   begin
+      start := m;
+      end := n;
+      m := n + 1
+   end;
+   
+   current := start;
+   
+   while current <= end do
+   begin
+      tempproduct := 0;
+      i := 1;
+      while i <= product do
+      begin
+         j := 1;
+         while j <= current do
+         begin
+            tempproduct := tempproduct + 1;
+            j := j + 1
+         end;
+         i := i + 1
+      end;
+      product := tempproduct;
+      current := current + 1
+   end;
+   
+   output(product)
+end productrange.
