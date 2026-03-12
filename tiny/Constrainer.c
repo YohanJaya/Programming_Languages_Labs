@@ -50,8 +50,14 @@
 #define EofNode        34
 #define ForNode        35
 #define DowntoNode     36
+#define RepeatNode      37
+#define CaseNode        38
+#define LoopNode        39
+#define ExitNode       40
+#define SwapNode        41 
 
-#define NumberOfNodes  36  
+
+#define NumberOfNodes  41  
 
 typedef TreeNode UserType;
 
@@ -64,7 +70,8 @@ char *node[] = { "program", "types", "type", "dclns",
                  "dcln", "integer", "boolean", "block",
                  "assign", "output", "if", "while", 
                  "<null>", "<=", "+", "-", "read",
-                 "<integer>", "<identifier>", "**", "=", "<>", ">=", "<", ">", "and", "or", "not", "mod", "*", "/", "true", "false", "eof","for", "downto"
+                 "<integer>", "<identifier>", "**", "=", "<>", ">=", "<", ">", "and", "or", "not", "mod", "*", "/", "true", "false", "eof","for", "downto",
+                   "repeat", "case", "loop", "exit", "swap"
                 };
 
 
@@ -430,7 +437,47 @@ void ProcessNode (TreeNode T)
          }
          ProcessNode(Child(T,4));
          break;
+      
+      case RepeatNode:
+         if (Expression(Child(T,2)) != TypeBoolean)
+         {
+            ErrorHeader(T);
+            printf ("UNTIL EXPRESSION NOT OF TYPE BOOLEAN\n");
+            printf ("\n");
+         }
+         ProcessNode(Child(T,1));
+         break;
+      
+      case CaseNode:
+         if (Expression(Child(T,1)) != TypeInteger)
+         {
+            ErrorHeader(T);
+            printf ("CASE EXPRESSION NOT OF TYPE INTEGER\n");
+            printf ("\n");
+         }
+         for (Kid = 2; Kid <= NKids(T); Kid++)
+            ProcessNode(Child(T,Kid));
+         break;
+      
+      case LoopNode:
+         ProcessNode(Child(T,1));
+         break;
+      
+      case ExitNode:
+         break;
 
+      case SwapNode:
+         Type1 = Expression(Child(T,1));
+         Type2 = Expression(Child(T,2));
+         if (Type1 != Type2)
+         {
+            ErrorHeader(T);
+            printf ("SWAP VARIABLES MUST BE OF THE SAME TYPE\n");
+            printf ("\n");
+         }
+         break;
+      
+      
 
 
       case NullNode : 

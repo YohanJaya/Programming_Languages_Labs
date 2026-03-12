@@ -44,10 +44,21 @@ STR     \"[^\"]+\"
 "else" 		{ return rule(ELSE); }
 "while" 	{ return rule(WHILE); }
 "do" 		{ return rule(DO); }
+"for"           { return rule(FOR); }
+"to"            { return rule(TO); }
+"downto"        { return rule(DOWNTO); }
+"repeat"        { return rule(REPEAT); }
+"until"         { return rule(UNTIL); }
+"case"          { return rule(CASE); }
+"of"            { return rule(OF); }
+"loop"          { return rule(LOOP); }
+"pool"          { return rule(POOL); }
+"exit"          { return rule(EXIT); }
 "**"            { return rule(POW); }
 "<=" 		{ return rule(LTE); }
 "<>"            { return rule(NEQ); }
 ">="            { return rule(GE); }
+":=:"           { return rule(SWAP); }
 "read" 		{ return rule(READ); }
 {INT}		{ return node(INTEGER_NUM); }
 {IDENT}		{ return node(IDENTIFIER); }
@@ -69,17 +80,6 @@ STR     \"[^\"]+\"
 ">"             { return rule(yytext[0]); }
 "*"             { return rule(yytext[0]); }
 "/"             { return rule(yytext[0]); }
-"for"           { return rule(FOR); }
-"to"            { return rule(TO); }
-"downto"        { return rule(DOWNTO); }
-"repeat"        { return rule(REPEAT); }
-"until"         { return rule(UNTIL); }
-"case"          { return rule(CASE); }
-"of"            { return rule(OF); }
-"loop"          { return rule(LOOP); }
-"pool"          { return rule(POOL); }
-"exit"          { return rule(EXIT); }
-":=:"           { return rule(SWAP); }
 
 .               { yyerror("unrecognized char");
                   printf("-->%s<--\n",yytext);

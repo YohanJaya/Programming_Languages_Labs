@@ -8,6 +8,7 @@ Type       -> INTEGER 		             		=> "integer"
 Body       -> BEGINX Statement list ';' END      	=> "block";
 
 Statement  -> Name ASSIGNMENT Relational         	=> "assign"
+           -> Name SWAP Name                        => "swap"
            -> OUTPUT '(' Relational list ',' ')'    => "output"
            -> IF Relational THEN Statement (ELSE Statement)? => "if"
            -> WHILE Relational DO Statement         => "while"
