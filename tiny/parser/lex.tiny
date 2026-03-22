@@ -24,19 +24,12 @@ STR     \"[^\"]+\"
 
 {WHITE}    	{ column += yyleng; }
 \n         	{ column = 1; line++; }
-"program"    	{ return rule(PROGRAM); }
+"program"    	{ return rule(PROGRAM); }
 "var" 		{ return rule(VAR); }
 "integer" 	{ return rule(INTEGER); }
 "boolean" 	{ return rule(BOOLEAN); }
 "begin" 	{ return rule(BEGINX); }
 "end" 		{ return rule(END); }
-"and"           { return rule(AND); }
-"or"            { return rule(OR); }
-"not"           { return rule(NOT); }
-"mod"           { return rule(MOD); }
-"true"          { return rule(TRUE_KWD); }
-"false"         { return rule(FALSE_KWD); }
-"eof"           { return rule(EOF_KWD); }
 ":=" 		{ return rule(ASSIGNMENT); }
 "output" 	{ return rule(OUTPUT); }
 "if" 		{ return rule(IF); }
@@ -44,42 +37,46 @@ STR     \"[^\"]+\"
 "else" 		{ return rule(ELSE); }
 "while" 	{ return rule(WHILE); }
 "do" 		{ return rule(DO); }
-"for"           { return rule(FOR); }
-"to"            { return rule(TO); }
-"downto"        { return rule(DOWNTO); }
-"repeat"        { return rule(REPEAT); }
-"until"         { return rule(UNTIL); }
-"case"          { return rule(CASE); }
-"of"            { return rule(OF); }
-"loop"          { return rule(LOOP); }
-"pool"          { return rule(POOL); }
-"exit"          { return rule(EXIT); }
-"**"            { return rule(POW); }
 "<=" 		{ return rule(LTE); }
-"<>"            { return rule(NEQ); }
-">="            { return rule(GE); }
-":=:"           { return rule(SWAP); }
 "read" 		{ return rule(READ); }
-{INT}		{ return node(INTEGER_NUM); }
-{IDENT}		{ return node(IDENTIFIER); }
-"{"		{ column += yyleng; BEGIN( COMM1 ); }
-<COMM1>[^}\n]+  { column += yyleng; }
-<COMM1>"}"	{ column += yyleng; BEGIN( INITIAL ); }
-<COMM1>\n	{ column = 1; line++; }
-{COMM2}         { column = 1; line++; }
-":"             { return rule(yytext[0]); }
-";"             { return rule(yytext[0]); }
-"."             { return rule(yytext[0]); }
-","             { return rule(yytext[0]); }
-"("             { return rule(yytext[0]); }
-")"             { return rule(yytext[0]); }
-"+"             { return rule(yytext[0]); }
-"-"             { return rule(yytext[0]); }
-"="             { return rule(yytext[0]); }
-"<"             { return rule(yytext[0]); }
-">"             { return rule(yytext[0]); }
-"*"             { return rule(yytext[0]); }
-"/"             { return rule(yytext[0]); }
+"true" 		{ return rule(TRUE); }        /* Changed from TRUE_KWD */
+"false" 	{ return rule(FALSE); }       /* Changed from FALSE_KWD */
+"eof"       { return rule(EOFX); }        /* Changed from EOF_KWD */
+"and"           { return rule(AND); }
+"or"            { return rule(OR); }
+"mod"           { return rule(MOD); }
+"not"           { return rule(NOT); }
+"for"           { return rule(FOR); }
+"to"            { return rule(TO); }
+"downto"        { return rule(DOWNTO); }
+"repeat"        { return rule(REPEAT); }
+"until"         { return rule(UNTIL); }
+"case"      { return rule(CASE); }
+"of"        { return rule(OF); }
+"otherwise" { return rule(OTHERWISE); }   /* Added this line */
+"loop"      { return rule(LOOP); }
+"pool"      { return rule(POOL); }
+"exit"      { return rule(EXIT); }
+":=:"       { return rule(SWAP); }
+
+/* Operator Section */
+".."            { return rule(DOTDOT); }  /* Added for case ranges */
+":"             { return rule(yytext[0]); }
+";"             { return rule(yytext[0]); }
+"."             { return rule(yytext[0]); }
+","             { return rule(yytext[0]); }
+"("             { return rule(yytext[0]); }
+")"             { return rule(yytext[0]); }
+"+"             { return rule(PLUS); }     /* Use macro instead of char */
+"-"             { return rule(MINUS); }    /* Use macro instead of char */
+"="             { return rule(EQUAL); }    /* Use macro instead of char */
+"<>"            { return rule(NOT_EQUAL); }/* Changed from NEQ */
+">="            { return rule(GTE); }       /* Changed from GE */
+"<"             { return rule(LT); }
+">"             { return rule(GT); }
+"*"             { return rule(MULTIPLY); } /* Use macro instead of char */
+"**"            { return rule(POWER); }    /* Changed from POW */
+"/"             { return rule(DIVIDE); }   /* Use macro instead of char */
 
 .               { yyerror("unrecognized char");
                   printf("-->%s<--\n",yytext);

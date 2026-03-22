@@ -48,16 +48,18 @@
 #define TrueNode       32
 #define FalseNode      33
 #define EofNode        34
-#define ForNode        35
-#define DowntoNode     36
-#define RepeatNode      37
-#define CaseNode        38
-#define LoopNode        39
-#define ExitNode       40
-#define SwapNode        41 
+#define ForToNode 35
+#define ForDowntoNode 36
+#define RepeatNode 37
+#define CaseNode 38 
+#define CaseClauseNode 39
+#define CaseClauseRangeNode 40
+#define SwapNode 41
+#define LoopNode 42
+#define ExitNode 43
+#define OtherwiseNode 44
 
-
-#define NumberOfNodes  41  
+#define NumberOfNodes 44 
 
 typedef TreeNode UserType;
 
@@ -70,8 +72,9 @@ char *node[] = { "program", "types", "type", "dclns",
                  "dcln", "integer", "boolean", "block",
                  "assign", "output", "if", "while", 
                  "<null>", "<=", "+", "-", "read",
-                 "<integer>", "<identifier>", "**", "=", "<>", ">=", "<", ">", "and", "or", "not", "mod", "*", "/", "true", "false", "eof","for", "downto",
-                   "repeat", "case", "loop", "exit", "swap"
+                 "<integer>", "<identifier>", "**", "=", "<>", ">=", "<", ">", "and", "or", "not", "mod", "*", "/", "true", "false", "eof", "for_to", "for_downto",
+                 "repeat", "case", "case_clause", "case_clause_range", "swap", "loop",
+                 "exit", "otherwise"
                 };
 
 
@@ -392,71 +395,42 @@ void ProcessNode (TreeNode T)
          ProcessNode (Child(T,2));
          break;
 
-      case ForNode:
-         // Check that loop variable is declared and is integer type
-         if (Expression(Child(T,1)) != TypeInteger)
-         {
-            ErrorHeader(T);
-            printf ("FOR LOOP VARIABLE MUST BE TYPE INTEGER\n");
-            printf ("\n");
+      case ForToNode :
+      case ForDowntoNode :
+         if (Expression(Child(T, 1)) != TypeInteger || 
+             Expression(Child(T, 2)) != TypeInteger || 
+             Expression(Child(T, 3)) != TypeInteger) {
+             ErrorHeader(T);
+             printf("FOR/DOWNTO ARGUMENTS MUST BE TYPE INTEGER\n\n");
          }
-         if (Expression(Child(T,2)) != TypeInteger)
-         {
-            ErrorHeader(T);
-            printf ("FOR INITIAL VALUE MUST BE TYPE INTEGER\n");
-            printf ("\n");
+         ProcessNode(Child(T, 4)); 
+         break;
+
+      case RepeatNode :
+         for (Kid = 1; Kid < NKids(T); Kid++) {
+             ProcessNode(Child(T, Kid));
          }
-         if (Expression(Child(T,3)) != TypeInteger)
-         {
+         if (Expression(Child(T, NKids(T))) != TypeBoolean) {
             ErrorHeader(T);
-            printf ("FOR FINAL VALUE MUST BE TYPE INTEGER\n");
-            printf ("\n");
+            printf("UNTIL EXPRESSION MUST BE TYPE BOOLEAN\n\n");
          }
-         ProcessNode(Child(T,4));
          break;
       
-      case DowntoNode:
-         // Check that loop variable is declared and is integer type
-         if (Expression(Child(T,1)) != TypeInteger)
-         {
+      case CaseNode :
+         if (Expression(Child(T, 1)) != TypeInteger) {
             ErrorHeader(T);
-            printf ("DOWNTO LOOP VARIABLE MUST BE TYPE INTEGER\n");
-            printf ("\n");
+            printf("CASE EXPRESSION MUST BE TYPE INTEGER\n\n");
          }
-         if (Expression(Child(T,2)) != TypeInteger)
-         {
-            ErrorHeader(T);
-            printf ("DOWNTO INITIAL VALUE MUST BE TYPE INTEGER\n");
-            printf ("\n");
+         for (Kid = 2; Kid < NKids(T); Kid++) {
+             TreeNode Clause = Child(T, Kid);
+             if (Rank(Clause) == 3)
+                ProcessNode(Child(Clause, 3));
+             else
+                ProcessNode(Child(Clause, 2));
          }
-         if (Expression(Child(T,3)) != TypeInteger)
-         {
-            ErrorHeader(T);
-            printf ("DOWNTO FINAL VALUE MUST BE TYPE INTEGER\n");
-            printf ("\n");
+         if (NodeName(Child(T, NKids(T))) != NullNode) {
+             ProcessNode(Child(Child(T, NKids(T)), 1));
          }
-         ProcessNode(Child(T,4));
-         break;
-      
-      case RepeatNode:
-         if (Expression(Child(T,2)) != TypeBoolean)
-         {
-            ErrorHeader(T);
-            printf ("UNTIL EXPRESSION NOT OF TYPE BOOLEAN\n");
-            printf ("\n");
-         }
-         ProcessNode(Child(T,1));
-         break;
-      
-      case CaseNode:
-         if (Expression(Child(T,1)) != TypeInteger)
-         {
-            ErrorHeader(T);
-            printf ("CASE EXPRESSION NOT OF TYPE INTEGER\n");
-            printf ("\n");
-         }
-         for (Kid = 2; Kid <= NKids(T); Kid++)
-            ProcessNode(Child(T,Kid));
          break;
       
       case LoopNode:

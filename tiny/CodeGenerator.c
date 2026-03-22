@@ -106,20 +106,43 @@
 #define    TrueNode    79   /* 'true'     */
 #define    FalseNode   80   /* 'false'    */
 #define    EofNode      81   /* 'eof'      */
-#define    ForNode      82   /* 'for'      */
-#define    DowntoNode   83   /* 'downto'   */
-#define    RepeatNode   84   /* 'repeat'   */
-#define    CaseNode     85   /* 'case'     */
-#define    LoopNode     86   /* 'loop'     */
-#define    ExitNode     87   /* 'exit'     */
-#define    SwapNode     88   /* 'swap'     */
+#define ForToNode 82 
+#define ForDowntoNode 83  
+#define RepeatNode 84 
+#define CaseNode 85 
+#define CaseClauseNode 86 
+#define CaseClauseRangeNode 87 
+#define SwapNode 88
+#define LoopNode 89 
+#define ExitNode 90 
+#define OtherwiseNode 91 
 
-#define    NumberOfNodes 88
+#define NumberOfNodes 91
 typedef int Mode;
 
 FILE *CodeFile;
 char *CodeFileName;
 Clabel HaltLabel;
+
+#define MAX_LOOP_NESTING 128
+static Clabel LoopExitLabelStack[MAX_LOOP_NESTING];
+static int LoopExitTop = -1;
+
+void PushLoopExitLabel(Clabel L) {
+   if (LoopExitTop < MAX_LOOP_NESTING - 1)
+      LoopExitLabelStack[++LoopExitTop] = L;
+}
+
+void PopLoopExitLabel(void) {
+   if (LoopExitTop >= 0)
+      LoopExitTop--;
+}
+
+Clabel CurrentLoopExitLabel(void) {
+   if (LoopExitTop >= 0)
+      return LoopExitLabelStack[LoopExitTop];
+   return NoLabel;
+}
 
 char *mach_op[] = 
     {"NOP","HALT","LIT","LLV","LGV","SLV","SGV","LLA","LGA",
@@ -426,18 +449,18 @@ Clabel ProcessNode (TreeNode T, Clabel CurrLabel)
          else
             return (CurrLabel);
 
-      case DclnNode :./tc test-progs/pr2.c02  
+      case DclnNode :
          for (Kid = 1; Kid < NKids(T); Kid++)
          {
             if (Kid != 1)
-               CodeGen1 (LITOP,MakeStringOf(0),NoLabel);
+                CodeGen1 (LITOP,MakeStringOf(0),NoLabel);
             else
-               CodeGen1 (LITOP,MakeStringOf(0),CurrLabel);
+                CodeGen1 (LITOP,MakeStringOf(0),CurrLabel);
             Num = MakeAddress();
             Decorate ( Child(T,Kid), Num);
             IncrementFrameSize();
          }
-         return (NoLabel);                 
+         return (NoLabel);                
 
       case BlockNode :
          for (Kid = 1; Kid <= NKids(T); Kid++)
@@ -451,15 +474,10 @@ Clabel ProcessNode (TreeNode T, Clabel CurrLabel)
          return (NoLabel);
 
       case SwapNode :
-         // A :=: B swaps values of A and B
-         // Child(1) = A, Child(2) = B
-         // Stack: Load A, Load B, then SWAP puts B on top, A below
-         // Then store top (B's value) to A, and next (A's value) to B
-         Reference(Child(T,1), RightMode, CurrLabel);  // Load A (bottom)
-         Reference(Child(T,2), RightMode, NoLabel);     // Load B (top)
-         CodeGen0(SWAPOP, NoLabel);                     // Swap: now A on top, B below
-         Reference(Child(T,2), LeftMode, NoLabel);      // Store top to B (gets A's value)
-         Reference(Child(T,1), LeftMode, NoLabel);      // Store next to A (gets B's value)
+         Reference(Child(T,1), RightMode, CurrLabel); 
+         Reference(Child(T,2), RightMode, NoLabel);                      
+         Reference(Child(T,1), LeftMode, NoLabel);    
+         Reference(Child(T,2), LeftMode, NoLabel);    
          return (NoLabel);
 
 
@@ -518,7 +536,7 @@ Clabel ProcessNode (TreeNode T, Clabel CurrLabel)
          CodeGen1 (GOTOOP, Label1, ProcessNode (Child(T,2), Label2) );
          return (Label3);
       
-      case ForNode :
+      case ForToNode :
          // for i := start to end do body
          // Child(1) = loop variable, Child(2) = start, Child(3) = end, Child(4) = body
          
@@ -555,7 +573,7 @@ Clabel ProcessNode (TreeNode T, Clabel CurrLabel)
          
          return (Label3);
          
-      case DowntoNode :
+      case ForDowntoNode :
          // for i := start downto end do body
          // Child(1) = loop variable, Child(2) = start, Child(3) = end, Child(4) = body
          
@@ -593,27 +611,25 @@ Clabel ProcessNode (TreeNode T, Clabel CurrLabel)
          return (Label3);
 
       case RepeatNode :
-         // repeat <statements> until <condition>
-         // Child(1) = statement block, Child(2) = condition
-         // Execute statements first, then check condition
-         
-         if (CurrLabel == NoLabel)
-            Label1 = MakeLabel();
-         else
-            Label1 = CurrLabel;
-         Label2 = MakeLabel();  // exit label
-         
-         // Label1: Execute statements
-         ProcessNode(Child(T,1), Label1);
-         
-         // Check condition
-         Expression(Child(T,2), NoLabel);
-         
-         // If false (0), repeat; if true (1), exit
-         CodeGen2(CONDOP, Label2, Label1, NoLabel);
-         DecrementFrameSize();
-         
-         return (Label2);
+      {
+          Clabel LoopStart = MakeLabel();
+          Clabel StmtLabel = NoLabel;
+          Clabel LoopEnd = MakeLabel();
+          
+          CodeGen0(NOP, LoopStart); 
+
+          for (Kid = 1; Kid < NKids(T); Kid++) {
+              StmtLabel = ProcessNode(Child(T, Kid), StmtLabel);
+          }
+
+          Expression(Child(T, NKids(T)), StmtLabel); 
+
+          CodeGen2(CONDOP, LoopEnd, LoopStart, NoLabel);
+          DecrementFrameSize();
+          
+          return (LoopEnd);
+      }
+
 
       case LoopNode :
          // loop <statements> pool (infinite loop with exit statement)

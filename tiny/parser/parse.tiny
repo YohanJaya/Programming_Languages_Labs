@@ -1,60 +1,67 @@
 %%
-Tiny       -> PROGRAM Name ':' Dclns Body Name '.' 	=> "program";
-Dclns      -> VAR (Dcln ';')*				=> "dclns"
+Tiny       ->PROGRAM Name ':' Dclns Body Name '.' => "program";
+Dclns      -> VAR (Dcln ';')*				=> "dclns";
            -> 					     	=> "dclns";
 Dcln       -> Name list ',' ':' Type			=> "dcln";
 Type       -> INTEGER 		             		=> "integer"
            -> BOOLEAN				     	=> "boolean";
 Body       -> BEGINX Statement list ';' END      	=> "block";
-
-Statement  -> Name ASSIGNMENT Relational         	=> "assign"
-           -> Name SWAP Name                        => "swap"
-           -> OUTPUT '(' Relational list ',' ')'    => "output"
-           -> IF Relational THEN Statement (ELSE Statement)? => "if"
-           -> WHILE Relational DO Statement         => "while"
-           -> FOR Name ASSIGNMENT Expression TO Expression DO Statement     => "for"
-           -> FOR Name ASSIGNMENT Expression DOWNTO Expression DO Statement => "downto"
-           -> REPEAT (Statement list ';') UNTIL Relational => "repeat"
-           -> LOOP (Statement list ';') POOL         => "loop"
-           -> EXIT                                   => "exit"
-           -> CASE Expression OF CaseBranch list ';' END => "case"
+Statement  -> Name ASSIGNMENT Expression          	=> "assign"
+           -> OUTPUT '(' ExprList ')'             	=> "output"
+           -> IF Expression THEN Statement
+                            ELSE Statement       	=> "if"
+           -> IF Expression THEN Statement         	=> "if"
+           -> WHILE Expression DO Statement      	=> "while"
+           -> FOR Name ASSIGNMENT Expression TO Expression DO Statement      => "for_to"
+           -> FOR Name ASSIGNMENT Expression DOWNTO Expression DO Statement  => "for_downto"
+           -> REPEAT Statement list ';' UNTIL Expression     => "repeat"
+           -> CASE Expression OF (CaseClause ';')+ OtherwiseClause END    => "case"
+           -> Name SWAP Name                              => "swap"
+           -> LOOP Statement list ';' POOL                => "loop"
+           -> EXIT                                        => "exit"
            -> Body
-           ->                                       => "<null>";
+	       ->                                       => "<null>";
+ExprList   -> Expression (',' Expression)*;
 
+CaseClause -> INTEGER_NUM ':' Statement                     => "case_clause"
+           -> INTEGER_NUM DOTDOT INTEGER_NUM ':' Statement  => "case_clause_range";
 
-Name       -> IDENTIFIER				=> "<identifier>";
+OtherwiseClause -> OTHERWISE Statement                                 => "otherwise"
+                ->                                                     => "<null>";
 
-Relational -> Expression
-           -> Expression LTE Expression                => "<="
-           -> Expression '=' Expression                => "="
-           -> Expression NEQ Expression                => "<>"
-           -> Expression GE Expression                 => ">="
-           -> Expression '<' Expression                => "<"
-           -> Expression '>' Expression                => ">";
+Expression -> OrExpr LTE OrExpr                       	=> "<="
+           -> OrExpr EQUAL OrExpr                     	=> "="
+           -> OrExpr NOT_EQUAL OrExpr                 	=> "<>"
+           -> OrExpr GTE OrExpr                       	=> ">="
+           -> OrExpr LT OrExpr                        	=> "<"
+           -> OrExpr GT OrExpr                        	=> ">"
+           -> OrExpr;
 
-Expression -> Term
-           -> Expression '+' Term                   => "+"
-           -> Expression '-' Term                   => "-"
-           -> Expression OR Term                    => "or";
+OrExpr     -> OrExpr PLUS AndExpr                     	=> "+"
+           -> OrExpr MINUS AndExpr                    	=> "-"
+           -> OrExpr OR AndExpr                       	=> "or"
+           -> AndExpr;
 
-Term       -> Unary
-           -> Term '*' Unary                        => "*"
-           -> Term '/' Unary                        => "/"
-           -> Term AND Unary                        => "and"
-           -> Term MOD Unary                        => "mod";
+AndExpr    -> AndExpr MULTIPLY UnaryExpr              	=> "*"
+           -> AndExpr DIVIDE UnaryExpr                	=> "/"
+           -> AndExpr AND UnaryExpr                   	=> "and"
+           -> AndExpr MOD UnaryExpr                   	=> "mod"
+           -> UnaryExpr;
 
-Unary      -> '+' Unary                             => "+"
-           -> '-' Unary                             => "-"
-           -> NOT Unary                             => "not"
-           -> Factor;
+UnaryExpr  -> MINUS UnaryExpr                         	=> "-"
+           -> PLUS UnaryExpr                          	=> "+"
+           -> NOT UnaryExpr                           	=> "not"
+           -> PowerExpr;
 
-Factor     -> Primary POW Factor                    => "**"
+PowerExpr  -> Primary POWER PowerExpr                 	=> "**"
            -> Primary;
 
-Primary    -> READ                                  => "read"
-           -> EOF_KWD                               => "eof"
-           -> TRUE_KWD                              => "true"
-           -> FALSE_KWD                             => "false"
+Primary    -> READ                              	=> "read"
+           -> EOFX                               	=> "eof"
            -> Name
-           -> INTEGER_NUM                           => "<integer>"
-           -> '(' Relational ')';
+           -> INTEGER_NUM				=> "<integer>"
+           -> TRUE					=> "<true>"
+           -> FALSE					=> "<false>"
+           -> '(' Expression ')';
+
+Name       -> IDENTIFIER				=> "<identifier>";
