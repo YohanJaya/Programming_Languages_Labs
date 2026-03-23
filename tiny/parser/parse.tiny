@@ -1,6 +1,6 @@
 %%
-Tiny       ->PROGRAM Name ':' Dclns Body Name '.' => "program";
-Dclns      -> VAR (Dcln ';')*				=> "dclns";
+Tiny       -> PROGRAM Name ':' Dclns Body Name '.' 	=> "program";
+Dclns      -> VAR (Dcln ';')*				=> "dclns"
            -> 					     	=> "dclns";
 Dcln       -> Name list ',' ':' Type			=> "dcln";
 Type       -> INTEGER 		             		=> "integer"
