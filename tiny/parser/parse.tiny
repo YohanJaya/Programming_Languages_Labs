@@ -1,67 +1,110 @@
 %%
-Tiny       -> PROGRAM Name ':' Dclns Body Name '.' 	=> "program";
-Dclns      -> VAR (Dcln ';')*				=> "dclns"
-           -> 					     	=> "dclns";
-Dcln       -> Name list ',' ':' Type			=> "dcln";
-Type       -> INTEGER 		             		=> "integer"
-           -> BOOLEAN				     	=> "boolean";
-Body       -> BEGINX Statement list ';' END      	=> "block";
-Statement  -> Name ASSIGNMENT Expression          	=> "assign"
-           -> OUTPUT '(' ExprList ')'             	=> "output"
+Tiny       -> PROGRAM Name ':' Dclns Body Name '.'	=> "program";
+
+Dclns      -> Dcln*					=> "dclns";
+
+Dcln       -> CONST (ConstDcln ';')+			=> "consts"
+           -> TYPE (TypeDcln ';')+			=> "types"
+           -> VAR (VarDcln ';')+			=> "dclns";
+
+ConstDcln  -> Name EQUAL ConstValue			=> "const";
+
+ConstValue -> INTEGER_NUM				=> "<integer>"
+           -> CHAR_LITERAL				=> "<char>"
+           -> TRUE				=> "<true>"
+           -> FALSE				=> "<false>"
+           -> Name;
+
+TypeDcln   -> Name EQUAL TypeDef			=> "type";
+
+TypeDef    -> INTEGER					=> "integer"
+           -> BOOLEAN					=> "boolean"
+           -> CHAR					=> "char"
+           -> Name
+           -> '(' Name list ',' ')'			=> "lit";
+
+VarDcln    -> Name list ',' ':' TypeName		=> "dcln";
+
+TypeName   -> INTEGER					=> "integer"
+           -> BOOLEAN					=> "boolean"
+           -> CHAR					=> "char"
+           -> Name;
+
+Body       -> BEGINX Statement list ';' END		=> "block";
+
+Statement  -> Name ASSIGNMENT Expression		=> "assign"
+           -> READ '(' ReadList ')'			=> "read"
+           -> OUTPUT '(' OutList ')'			=> "output"
            -> IF Expression THEN Statement
-                            ELSE Statement       	=> "if"
-           -> IF Expression THEN Statement         	=> "if"
-           -> WHILE Expression DO Statement      	=> "while"
+                           ELSE Statement		=> "if"
+           -> IF Expression THEN Statement		=> "if"
+           -> WHILE Expression DO Statement		=> "while"
            -> FOR Name ASSIGNMENT Expression TO Expression DO Statement      => "for_to"
            -> FOR Name ASSIGNMENT Expression DOWNTO Expression DO Statement  => "for_downto"
            -> REPEAT Statement list ';' UNTIL Expression     => "repeat"
            -> CASE Expression OF (CaseClause ';')+ OtherwiseClause END    => "case"
-           -> Name SWAP Name                              => "swap"
-           -> LOOP Statement list ';' POOL                => "loop"
-           -> EXIT                                        => "exit"
+           -> Name SWAP Name				=> "swap"
+           -> LOOP Statement list ';' POOL		=> "loop"
+           -> EXIT					=> "exit"
            -> Body
-	       ->                                       => "<null>";
-ExprList   -> Expression (',' Expression)*;
+           ->					=> "<null>";
 
-CaseClause -> INTEGER_NUM ':' Statement                     => "case_clause"
-           -> INTEGER_NUM DOTDOT INTEGER_NUM ':' Statement  => "case_clause_range";
+ReadList   -> ReadItem (',' ReadItem)*;
+ReadItem   -> Name					=> "read_item";
 
-OtherwiseClause -> OTHERWISE Statement                                 => "otherwise"
-                ->                                                     => "<null>";
+OutList    -> OutItem (',' OutItem)*;
+OutItem    -> Expression
+           -> STRING_LITERAL				=> "<string>";
 
-Expression -> OrExpr LTE OrExpr                       	=> "<="
-           -> OrExpr EQUAL OrExpr                     	=> "="
-           -> OrExpr NOT_EQUAL OrExpr                 	=> "<>"
-           -> OrExpr GTE OrExpr                       	=> ">="
-           -> OrExpr LT OrExpr                        	=> "<"
-           -> OrExpr GT OrExpr                        	=> ">"
-           -> OrExpr;
-
-OrExpr     -> OrExpr PLUS AndExpr                     	=> "+"
-           -> OrExpr MINUS AndExpr                    	=> "-"
-           -> OrExpr OR AndExpr                       	=> "or"
-           -> AndExpr;
-
-AndExpr    -> AndExpr MULTIPLY UnaryExpr              	=> "*"
-           -> AndExpr DIVIDE UnaryExpr                	=> "/"
-           -> AndExpr AND UnaryExpr                   	=> "and"
-           -> AndExpr MOD UnaryExpr                   	=> "mod"
-           -> UnaryExpr;
-
-UnaryExpr  -> MINUS UnaryExpr                         	=> "-"
-           -> PLUS UnaryExpr                          	=> "+"
-           -> NOT UnaryExpr                           	=> "not"
-           -> PowerExpr;
-
-PowerExpr  -> Primary POWER PowerExpr                 	=> "**"
-           -> Primary;
-
-Primary    -> READ                              	=> "read"
-           -> EOFX                               	=> "eof"
-           -> Name
-           -> INTEGER_NUM				=> "<integer>"
+CaseClause -> CaseValue ':' Statement			=> "case_clause"
+           -> CaseValue DOTDOT CaseValue ':' Statement	=> "case_clause_range";
+CaseValue  -> INTEGER_NUM				=> "<integer>"
+           -> CHAR_LITERAL				=> "<char>"
            -> TRUE					=> "<true>"
            -> FALSE					=> "<false>"
+           -> Name;
+
+OtherwiseClause -> OTHERWISE Statement			=> "otherwise"
+                -> OTHERWISE Statement ';'		=> "otherwise"
+                ->					=> "<null>";
+
+Expression -> OrExpr LTE OrExpr			=> "<="
+           -> OrExpr EQUAL OrExpr			=> "="
+           -> OrExpr NOT_EQUAL OrExpr			=> "<>"
+           -> OrExpr GTE OrExpr			=> ">="
+           -> OrExpr LT OrExpr				=> "<"
+           -> OrExpr GT OrExpr				=> ">"
+           -> OrExpr;
+
+OrExpr     -> OrExpr PLUS AndExpr			=> "+"
+           -> OrExpr MINUS AndExpr			=> "-"
+           -> OrExpr OR AndExpr				=> "or"
+           -> AndExpr;
+
+AndExpr    -> AndExpr MULTIPLY UnaryExpr		=> "*"
+           -> AndExpr DIVIDE UnaryExpr			=> "/"
+           -> AndExpr AND UnaryExpr			=> "and"
+           -> AndExpr MOD UnaryExpr			=> "mod"
+           -> UnaryExpr;
+
+UnaryExpr  -> MINUS UnaryExpr				=> "-"
+           -> PLUS UnaryExpr				=> "+"
+           -> NOT UnaryExpr				=> "not"
+           -> SUCC '(' Expression ')'			=> "succ"
+           -> PRED '(' Expression ')'			=> "pred"
+           -> ORD '(' Expression ')'			=> "ord"
+           -> CHR '(' Expression ')'			=> "chr"
+           -> PowerExpr;
+
+PowerExpr  -> Primary POWER PowerExpr			=> "**"
+           -> Primary;
+
+Primary    -> EOFX					=> "eof"
+           -> TRUE				=> "<true>"
+           -> FALSE				=> "<false>"
+           -> Name
+           -> INTEGER_NUM				=> "<integer>"
+           -> CHAR_LITERAL				=> "<char>"
            -> '(' Expression ')';
 
 Name       -> IDENTIFIER				=> "<identifier>";

@@ -18,16 +18,21 @@ COMM2   #.*\n
 IDENT	[_a-zA-Z][_a-zA-Z0-9]*
 INT	[0-9]+
 WHITE   [ \t\v\f]*
-LIT     '[^\']+'
-STR     \"[^\"]+\"
+LIT     '[^\']*'
+STR     \"[^\"]*\"
 %%
 
 {WHITE}    	{ column += yyleng; }
 \n         	{ column = 1; line++; }
 "program"    	{ return rule(PROGRAM); }
 "var" 		{ return rule(VAR); }
+"const"         { return rule(CONST); }
+"type"          { return rule(TYPE); }
 "integer" 	{ return rule(INTEGER); }
 "boolean" 	{ return rule(BOOLEAN); }
+"char"          { return rule(CHAR); }
+"true"          { return rule(TRUE); }
+"false"         { return rule(FALSE); }
 "begin" 	{ return rule(BEGINX); }
 "end" 		{ return rule(END); }
 ":=" 		{ return rule(ASSIGNMENT); }
@@ -39,9 +44,11 @@ STR     \"[^\"]+\"
 "do" 		{ return rule(DO); }
 "<=" 		{ return rule(LTE); }
 "read" 		{ return rule(READ); }
-"true" 		{ return rule(TRUE); }
-"false" 	{ return rule(FALSE); }
-"eof"       { return rule(EOFX); }
+"succ"          { return rule(SUCC); }
+"pred"          { return rule(PRED); }
+"ord"           { return rule(ORD); }
+"chr"           { return rule(CHR); }
+"eof"           { return rule(EOFX); }
 "and"           { return rule(AND); }
 "or"            { return rule(OR); }
 "mod"           { return rule(MOD); }
@@ -58,15 +65,17 @@ STR     \"[^\"]+\"
 "pool"      { return rule(POOL); }
 "exit"      { return rule(EXIT); }
 ":=:"       { return rule(SWAP); }
+".."        { return rule(DOTDOT); }
 
 {INT}		{ return node(INTEGER_NUM); }
+{LIT}		{ return node(CHAR_LITERAL); }
+{STR}		{ return node(STRING_LITERAL); }
 {IDENT}		{ return node(IDENTIFIER); }
 "{"		{ column += yyleng; BEGIN( COMM1 ); }
 <COMM1>[^}\n]+  { column += yyleng; }
 <COMM1>"}"	{ column += yyleng; BEGIN( INITIAL ); }
 <COMM1>\n	{ column = 1; line++; }
 {COMM2}         { column = 1; line++; }
-".."            { return rule(DOTDOT); }
 ":"             { return rule(yytext[0]); }
 ";"             { return rule(yytext[0]); }
 "."             { return rule(yytext[0]); }
