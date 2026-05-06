@@ -1,13 +1,33 @@
 %%
-Tiny       -> PROGRAM Name ':' Dclns Body Name '.' 	=> "program";
+Tiny       -> PROGRAM Name ':' Consts Types Dclns Body Name '.' 	=> "program";
+
+Consts     -> CONST (Const ';')+			=> "consts"
+           ->                                           => "consts";
+
+Const      -> Name '=' ConstValue                      => "const";
+
+ConstValue -> INTEGER_NUM                               => "<integer>"
+           -> CHAR_LIT                                  => "<char>"
+           -> Name;
+
+Types      -> TYPE (TypeDef ';')+			=> "types"
+           ->                                           => "types";
+
+TypeDef    -> Name '=' LitList                          => "type"
+           -> Name '=' Name                             => "type";
+
+LitList    -> '(' Name list ',' ')'                    => "lit";
+
 Dclns      -> VAR (Dcln ';')*				=> "dclns"
            -> 					     	=> "dclns";
-Dcln       -> Name list ',' ':' Type			=> "dcln";
-Type       -> INTEGER 		             		=> "integer"
-           -> BOOLEAN				     	=> "boolean";
-Body       -> BEGINX Statement list ';' END      	=> "block";
+
+Dcln       -> Name list ',' ':' Name			=> "dcln";
+
+Body       -> BEGINX Statement list ';' END             => "block";
+
 Statement  -> Name ASSIGNMENT Expression          	=> "assign"
-           -> OUTPUT '(' ExprList ')'             	=> "output"
+           -> OUTPUT '(' OutList ')'             	=> "output"
+           -> READ '(' Name list ',' ')'                => "read"
            -> IF Expression THEN Statement
                             ELSE Statement       	=> "if"
            -> IF Expression THEN Statement         	=> "if"
@@ -20,7 +40,13 @@ Statement  -> Name ASSIGNMENT Expression          	=> "assign"
            -> LOOP Statement list ';' POOL                => "loop"
            -> EXIT                                        => "exit"
            -> Body
-	       ->                                       => "<null>";
+	   ->                                       => "<null>";
+
+OutList    -> OutItem (',' OutItem)*;
+
+OutItem    -> Expression
+           -> CHAR_LIT                                  => "<char>";
+
 ExprList   -> Expression (',' Expression)*;
 
 CaseClause -> INTEGER_NUM ':' Statement                     => "case_clause"
@@ -56,12 +82,9 @@ UnaryExpr  -> MINUS UnaryExpr                         	=> "-"
 PowerExpr  -> Primary POWER PowerExpr                 	=> "**"
            -> Primary;
 
-Primary    -> READ                              	=> "read"
-           -> EOFX                               	=> "eof"
+Primary    -> EOFX                               	=> "eof"
            -> Name
            -> INTEGER_NUM				=> "<integer>"
-           -> TRUE					=> "<true>"
-           -> FALSE					=> "<false>"
            -> '(' Expression ')';
 
 Name       -> IDENTIFIER				=> "<identifier>";

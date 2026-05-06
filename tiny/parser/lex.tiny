@@ -18,16 +18,17 @@ COMM2   #.*\n
 IDENT	[_a-zA-Z][_a-zA-Z0-9]*
 INT	[0-9]+
 WHITE   [ \t\v\f]*
-LIT     '[^\']+'
+LIT     '[^\']*'
 STR     \"[^\"]+\"
 %%
 
 {WHITE}    	{ column += yyleng; }
+\r         	{ }
 \n         	{ column = 1; line++; }
 "program"    	{ return rule(PROGRAM); }
 "var" 		{ return rule(VAR); }
-"integer" 	{ return rule(INTEGER); }
-"boolean" 	{ return rule(BOOLEAN); }
+"const"         { return rule(CONST); }
+"type"          { return rule(TYPE); }
 "begin" 	{ return rule(BEGINX); }
 "end" 		{ return rule(END); }
 ":=" 		{ return rule(ASSIGNMENT); }
@@ -39,9 +40,7 @@ STR     \"[^\"]+\"
 "do" 		{ return rule(DO); }
 "<=" 		{ return rule(LTE); }
 "read" 		{ return rule(READ); }
-"true" 		{ return rule(TRUE); }
-"false" 	{ return rule(FALSE); }
-"eof"       { return rule(EOFX); }
+"eof"           { return rule(EOFX); }
 "and"           { return rule(AND); }
 "or"            { return rule(OR); }
 "mod"           { return rule(MOD); }
@@ -59,6 +58,7 @@ STR     \"[^\"]+\"
 "exit"      { return rule(EXIT); }
 ":=:"       { return rule(SWAP); }
 
+{LIT}		{ return node(CHAR_LIT); }
 {INT}		{ return node(INTEGER_NUM); }
 {IDENT}		{ return node(IDENTIFIER); }
 "{"		{ column += yyleng; BEGIN( COMM1 ); }
