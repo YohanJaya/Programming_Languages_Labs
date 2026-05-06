@@ -422,8 +422,6 @@ void ProcessNode(TreeNode T)
          Decorate(T, constType);
          break;
       }
-
-      
       
       case DclnsNode:
          for (Kid = 1; Kid <= NKids(T); Kid++)
