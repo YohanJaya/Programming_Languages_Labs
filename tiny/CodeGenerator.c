@@ -305,18 +305,21 @@ void Reference(TreeNode T, Mode M, Clabel L)
    OFFSET = FrameDisplacement (Addr) ;
    switch (M)
    {
-      case LeftMode  :  DecrementFrameSize();
-                        if (ProcLevel (Addr) == 0) 
-                           Op = SGVOP;
-                        else
-                           Op = SLVOP;
-                        break;
+
       case RightMode :  IncrementFrameSize();
                         if (ProcLevel (Addr) == 0) 
                            Op = LGVOP;
                         else
                            Op = LLVOP;
                         break;
+
+      case LeftMode  :  DecrementFrameSize();
+                        if (ProcLevel (Addr) == 0) 
+                           Op = SGVOP;
+                        else
+                           Op = SLVOP;
+                        break;
+      
    }
    CodeGen1 (Op,MakeStringOf(OFFSET),L);
 }
@@ -344,17 +347,22 @@ void EmitLimitCheck(int LowerBound, int UpperBound)
 
 void EmitCaseValue(TreeNode T, Clabel L)
 {
-   if (NodeName(T) == CharNode)
-      CodeGen1(LITOP, MakeStringOf(CharLiteralToInt(NodeName(Child(T,1)))), L);
-   else if (NodeName(T) == TrueNode)
+
+   if (NodeName(T) == TrueNode)
       CodeGen1(LITOP, MakeStringOf(1), L);
-   else if (NodeName(T) == FalseNode)
-      CodeGen1(LITOP, MakeStringOf(0), L);
+
+   else if (NodeName(T) == CharNode)
+      CodeGen1(LITOP, MakeStringOf(CharLiteralToInt(NodeName(Child(T,1)))), L);
+   
+   
    else if (NodeName(T) == IdentifierNode)
    {
       Expression(T, L);
       return;
    }
+   else if (NodeName(T) == FalseNode)
+      CodeGen1(LITOP, MakeStringOf(0), L);
+
    else
       CodeGen1(LITOP, NodeName(Child(T,1)), L);
    IncrementFrameSize();
@@ -363,10 +371,7 @@ void EmitCaseValue(TreeNode T, Clabel L)
 
 int IsEnumeratedType(TreeNode Type)
 {
-   return (Type > 0 &&
-           NodeName(Type) == TypeNode &&
-           NKids(Type) >= 2 &&
-           NodeName(Child(Type,2)) == LitNode);
+   return (Type > 0 && NodeName(Type) == TypeNode && NKids(Type) >= 2 && NodeName(Child(Type,2)) == LitNode);
 }
 
 
@@ -405,7 +410,7 @@ int EnumLiteralOrdinal(TreeNode Decl)
    TreeNode Lit;
    int Kid;
 
-   if (Decl == NullDeclaration || NodeName(Decl) != IdentifierNode)
+   if ( NodeName(Decl) != IdentifierNode || Decl == NullDeclaration)
       return -1;
 
    Type = Decoration(Decl);
@@ -430,10 +435,10 @@ TreeNode IdentifierType(TreeNode T)
    if (Decl == NullDeclaration)
       return 0;
 
-   if (NodeName(Decl) == ConstNode)
+   if (EnumLiteralOrdinal(Decl) >= 0)
       return Decoration(Decl);
 
-   if (EnumLiteralOrdinal(Decl) >= 0)
+   if (NodeName(Decl) == ConstNode)
       return Decoration(Decl);
 
    Addr = Decoration(Decl);
@@ -450,35 +455,40 @@ TreeNode ExpressionType(TreeNode T)
    {
       case IntegerNode :
       case PlusNode :
-      case MinusNode :
-      case MultNode :
-      case DivNode :
-      case ModNode :
       case ExpNode :
-      case OrdNode :
-         return DecorIntegerTNode;
+      case MinusNode :
+      case DivNode :
+      case MultNode :
+      case ModNode :
 
       case CharNode :
       case ChrNode :
          return DecorCharTNode;
+      
+      case OrdNode :
+         return DecorIntegerTNode;
+
+      case PredNode :
+         return ExpressionType(Child(T,1));
+
+     
 
       case TrueNode :
       case FalseNode :
       case EofNode :
+      case GENode :
       case LENode :
+      case OrNode :
       case EQNode :
       case NENode :
-      case GENode :
       case LTNode :
       case GTNode :
-      case OrNode :
       case AndNode :
       case NotNode :
          return DecorBooleanTNode;
 
       case SuccNode :
-      case PredNode :
-         return ExpressionType(Child(T,1));
+      
 
       case IdentifierNode :
          return IdentifierType(T);
@@ -615,12 +625,12 @@ void Expression (TreeNode T, Clabel CurrLabel)
          TreeNode ExprType = ExpressionType(Child(T,1));
          Expression (Child(T,1), CurrLabel);
          CodeGen1 (UOPOP, USUCC, NoLabel);
-         if (IsCharType(ExprType))
+         if (IsEnumeratedType(ExprType))
+            EmitLimitCheck(0, EnumUpperBound(ExprType));
+         else if (IsCharType(ExprType))
             EmitLimitCheck(0, 255);
          else if (IsBooleanType(ExprType))
             EmitLimitCheck(0, 1);
-         else if (IsEnumeratedType(ExprType))
-            EmitLimitCheck(0, EnumUpperBound(ExprType));
          break;
       }
 
