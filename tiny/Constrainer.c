@@ -1,6 +1,9 @@
 /****************************************************************
               Copyright (C) 1986 by Manuel E. Bermudez
               Translated to C - 1991
+              Lab 5 Extensions: char type, const, user-defined types,
+              enumerated types, succ/pred/ord/chr, read statement,
+              string output.
 *****************************************************************/
 
 #include <stdio.h>
@@ -35,57 +38,81 @@
 #define IdentifierNode 19
 #define TrueNode       20
 #define FalseNode      21
-#define EQNode    22
-#define NENode    23
-#define GENode    24
-#define LTNode    25
-#define GTNode    26
-#define OrNode    27
-#define MultNode  28
-#define DivNode   29
-#define AndNode   30
-#define ModNode   31
-#define ExpNode   32
-#define NotNode   33
-#define EofNode   34
-#define ForToNode 35
-#define ForDowntoNode 36
-#define RepeatNode 37
-#define CaseNode       38 
+#define EQNode         22
+#define NENode         23
+#define GENode         24
+#define LTNode         25
+#define GTNode         26
+#define OrNode         27
+#define MultNode       28
+#define DivNode        29
+#define AndNode        30
+#define ModNode        31
+#define ExpNode        32
+#define NotNode        33
+#define EofNode        34
+#define ForToNode      35
+#define ForDowntoNode  36
+#define RepeatNode     37
+#define CaseNode       38
 #define CaseClauseNode 39
 #define CaseClauseRangeNode 40
-#define SwapNode      41
-#define LoopNode      42 /* 'loop' */
-#define ExitNode      43 /* 'exit' */
-#define OtherwiseNode 44 /* 'otherwise' */
+#define SwapNode       41
+#define LoopNode       42
+#define ExitNode       43
+#define OtherwiseNode  44
+#define ConstsNode     45  /* "consts"  */
+#define ConstNode      46  /* "const"   */
+#define CharTNode      47  /* "char"   */
+#define LitNode        48  /* "lit"   */
+#define CharNode       49  /* "<char>" */
+#define StringNode     50  /* "<string>"  */
+#define SuccNode       51  /* "succ"   */
+#define PredNode       52  /* "pred"   */
+#define OrdNode        53  /* "ord"    */
+#define ChrNode        54  /* "chr"    */
+#define ReadItemNode   55  /* "read_item" */
 
-#define NumberOfNodes 44
+#define NumberOfNodes  55
 
 typedef TreeNode UserType;
 
-/****************************************************************
- Add new node names to the end of the array, keeping in strict
-  order with the define statements above, then adjust the i loop
-  control variable in InitializeConstrainer().
-*****************************************************************/
-char *node[] = { "program", "types", "type", "dclns",
-                 "dcln", "integer", "boolean", "block",
-                 "assign", "output", "if", "while", 
-                 "<null>", "<=", "+", "-", "read",
-                 "<integer>", "<identifier>",
-                 "<true>", "<false>", "=", "<>", ">=", 
-                 "<", ">", "or", "*", "/", "and", 
-                 "mod", "**", "not", "eof", "for_to", "for_downto",
-                 "repeat", "case", "case_clause", "case_clause_range", "swap", "loop",
-                 "exit", "otherwise"
-                };
+char *node[] = {
+    "program", "types", "type", "dclns",
+    "dcln", "integer", "boolean", "block",
+    "assign", "output", "if", "while",
+    "<null>", "<=", "+", "-", "read",
+    "<integer>", "<identifier>",
+    "<true>", "<false>", "=", "<>", ">=",
+    "<", ">", "or", "*", "/", "and",
+    "mod", "**", "not", "eof", "for_to", "for_downto",
+    "repeat", "case", "case_clause", "case_clause_range",
+    "swap", "loop", "exit", "otherwise",
+    "consts", "const", "char", "lit", "<char>", "<string>",
+    "succ", "pred", "ord", "chr", "read_item"
+};
 
-
-UserType TypeInteger, TypeBoolean;
+UserType TypeInteger, TypeBoolean, TypeChar;
 boolean TraceSpecified;
 FILE *TraceFile;
 char *TraceFileName;
 int NumberTreesRead, index;
+
+int IsEnumeratedType(UserType Type)
+{
+   return (Type > 0 &&
+           NodeName(Type) == TypeNode &&
+           NKids(Type) >= 2 &&
+           NodeName(Child(Type,2)) == LitNode);
+}
+
+int IsScalarType(UserType Type)
+{
+   return (Type == TypeInteger ||
+           Type == TypeBoolean ||
+           Type == TypeChar ||
+           IsEnumeratedType(Type));
+}
 
 
 void Constrain(void)    
@@ -99,12 +126,6 @@ void Constrain(void)
 
    ProcessNode(RootOfTree(1)); 
 
-#if 0
-   PrintDclnTable(stdout);
-   PrintAllStrings(stdout);
-   PrintTree(stdout,RootOfTree(1));
-#endif
-    
    Tree_File = fopen("_TREE", "w");  
    Write_Trees();
    fclose (Tree_File);                   
@@ -132,25 +153,9 @@ void InitializeConstrainer (int argc, char *argv[])
 
 void AddIntrinsics (void)
 {
-   TreeNode TempTree;
-
-   AddTree (TypesNode, RootOfTree(1), 2);
-
-   TempTree = Child (RootOfTree(1), 2);
-   AddTree (TypeNode, TempTree, 1);
-
-   TempTree = Child (RootOfTree(1), 2);
-   AddTree (TypeNode, TempTree, 1);
-
-   TempTree = Child (Child (RootOfTree(1), 2), 1);
-   AddTree (BooleanTNode, TempTree, 1);
- 
-   TempTree = Child (Child (RootOfTree(1), 2), 2);
-   AddTree (IntegerTNode, TempTree, 1);
-
-   TempTree = Child (RootOfTree(1), 2);
-   TypeBoolean = Child(TempTree,1);
-   TypeInteger = Child(TempTree,2);
+   TypeInteger = IntegerTNode;
+   TypeBoolean = BooleanTNode;
+   TypeChar = CharTNode;
 }
 
 void ErrorHeader (TreeNode T)
@@ -169,8 +174,8 @@ int NKids (TreeNode T)
 UserType Expression (TreeNode T)
 {
    UserType Type1, Type2;
-   TreeNode Declaration, Temp1, Temp2;
-   int NodeCount;
+   TreeNode Declaration;
+
    if (TraceSpecified)
    {
       fprintf (TraceFile, "<<< CONSTRAINER >>> : Expn Processor Node ");
@@ -186,8 +191,7 @@ UserType Expression (TreeNode T)
          if (Type1 != Type2)
          {
             ErrorHeader(Child(T,1));
-            printf ("ARGUMENTS OF '<=' MUST BE TYPE INTEGER\n");
-            printf ("\n");
+            printf ("ARGUMENTS OF '<=' MUST HAVE THE SAME TYPE\n\n");
          }
          return (TypeBoolean);
 
@@ -201,13 +205,8 @@ UserType Expression (TreeNode T)
          if (Type1 != TypeInteger || Type2 != TypeInteger)
          {
             ErrorHeader(Child(T,1));
-            printf ("ARGUMENTS OF '+', '-', '*', '/', mod ");
-            printf ("MUST BE TYPE INTEGER\n");
-            printf ("\n");
+            printf ("ARGUMENTS OF '+', '-' MUST BE TYPE INTEGER\n\n");
          }
-         return (TypeInteger);
- 
-      case ReadNode :
          return (TypeInteger);
 
       case EofNode :
@@ -216,6 +215,9 @@ UserType Expression (TreeNode T)
       case IntegerNode : 
          return (TypeInteger);
 
+      case CharNode :
+         return (TypeChar);
+
       case EQNode :
       case NENode :
       case GENode :
@@ -223,21 +225,10 @@ UserType Expression (TreeNode T)
       case GTNode :
          Type1 = Expression (Child(T,1));
          Type2 = Expression (Child(T,2));
-         if (NodeName(T) == EQNode || NodeName(T) == NENode)
+         if (Type1 != Type2)
          {
-            if (Type1 != Type2)
-            {
-               ErrorHeader(Child(T,1));
-               printf ("ARGUMENTS OF '=' AND '<>' MUST HAVE MATCHING TYPES\n\n");
-            }
-         }
-         else
-         {
-            if (Type1 != TypeInteger || Type2 != TypeInteger)
-            {
-               ErrorHeader(Child(T,1));
-               printf ("ARGUMENTS OF '>=', '<', '>' MUST BE TYPE INTEGER\n\n");
-            }
+            ErrorHeader(Child(T,1));
+            printf ("ARGUMENTS OF COMPARISON OPERATORS MUST HAVE THE SAME TYPE\n\n");
          }
          return (TypeBoolean);
 
@@ -273,10 +264,38 @@ UserType Expression (TreeNode T)
             printf ("ARGUMENT OF 'not' MUST BE TYPE BOOLEAN\n\n");
          }
          return (TypeBoolean);
-      
+
       case TrueNode :
       case FalseNode :
          return (TypeBoolean);
+
+      case SuccNode :
+      case PredNode :
+         Type1 = Expression (Child(T,1));
+         if (!IsScalarType(Type1))
+         {
+            ErrorHeader(Child(T,1));
+            printf ("ARGUMENT OF 'succ'/'pred' MUST BE INTEGER, CHAR, OR ENUMERATED TYPE\n\n");
+         }
+         return (Type1);
+
+      case OrdNode :
+         Type1 = Expression (Child(T,1));
+         if (!IsScalarType(Type1))
+         {
+            ErrorHeader(Child(T,1));
+            printf ("ARGUMENT OF 'ord' MUST BE INTEGER, BOOLEAN, CHAR, OR ENUMERATED TYPE\n\n");
+         }
+         return (TypeInteger);
+
+      case ChrNode :
+         Type1 = Expression (Child(T,1));
+         if (Type1 != TypeInteger)
+         {
+            ErrorHeader(Child(T,1));
+            printf ("ARGUMENT OF 'chr' MUST BE TYPE INTEGER\n\n");
+         }
+         return (TypeChar);
 
       case IdentifierNode :
          Declaration = Lookup (NodeName(Child(T,1)), T);
@@ -286,13 +305,20 @@ UserType Expression (TreeNode T)
             return (Decoration(Declaration));
          }
          else
+         {
+            ErrorHeader(T);
+            printf ("UNDECLARED IDENTIFIER: ");
+            Write_String(stdout, NodeName(Child(T,1)));
+            printf("\n\n");
             return (TypeInteger);
+         }
 
       default :
          ErrorHeader(T);
-         printf ( "UNKNOWN NODE NAME ");
+         printf ( "UNKNOWN EXPRESSION NODE NAME ");
          Write_String (stdout,NodeName(T));
          printf ("\n");
+         return (TypeInteger);
 
    }  /* end switch */
 }  /* end Expression */
@@ -302,7 +328,10 @@ void ProcessNode (TreeNode T)
 {
    int Kid, N;
    String Name1, Name2;
-   TreeNode Type1, Type2, Type3;
+   TreeNode Type1, Type2, Type3, Declaration;
+   UserType ExprType;
+   int LitIndex;
+
    if (TraceSpecified)
    {
       fprintf (TraceFile,
@@ -319,12 +348,43 @@ void ProcessNode (TreeNode T)
          if (Name1 != Name2)
          {
            ErrorHeader(T);
-           printf ("PROGRAM NAMES DO NOT MATCH\n");
-           printf ("\n");
+           printf ("PROGRAM NAMES DO NOT MATCH\n\n");
          }
          for (Kid = 2; Kid <= NKids(T)-1; Kid++)
             ProcessNode (Child(T,Kid));
          break;
+
+      case ConstsNode :
+         for (Kid = 1; Kid <= NKids(T); Kid++)
+            ProcessNode (Child(T,Kid));
+         break;
+
+      case ConstNode :
+      {
+         String ConstName = NodeName(Child(Child(T,1),1));
+         TreeNode ValueNode = Child(T,2);
+         UserType ConstType;
+         if (NodeName(ValueNode) == IntegerNode)
+            ConstType = TypeInteger;
+         else if (NodeName(ValueNode) == CharNode)
+            ConstType = TypeChar;
+	         else if (NodeName(ValueNode) == TrueNode || NodeName(ValueNode) == FalseNode)
+	            ConstType = TypeBoolean;
+	         else
+	         {
+	            Declaration = Lookup(NodeName(Child(ValueNode,1)), T);
+	            if (Declaration != NullDeclaration)
+	            {
+	               Decorate(ValueNode, Declaration);
+	               ConstType = Decoration(Declaration);
+	            }
+	            else
+	               ConstType = TypeInteger;
+	         }
+         DTEnter(ConstName, T, T);
+         Decorate(T, ConstType);
+         break;
+      }
 
       case TypesNode :  
          for (Kid = 1; Kid <= NKids(T); Kid++)
@@ -332,8 +392,43 @@ void ProcessNode (TreeNode T)
          break;
 
       case TypeNode :
-         DTEnter (NodeName(Child(T,1)),T,T);
+      {
+         String TypeName2;
+         TreeNode TypeDef;
+         if (NKids(T) < 2)
+            break;
+
+         TypeName2 = NodeName(Child(Child(T,1),1));
+         TypeDef = Child(T,2);
+         DTEnter(TypeName2, T, T);
+
+         if (NodeName(TypeDef) == LitNode)
+         {
+
+            Decorate(T, T);
+            for (LitIndex = 1; LitIndex <= NKids(TypeDef); LitIndex++)
+            {
+               String MemberName = NodeName(Child(Child(TypeDef,LitIndex),1));
+               DTEnter(MemberName, Child(TypeDef,LitIndex), Child(TypeDef,LitIndex));
+               Decorate(Child(TypeDef,LitIndex), T);
+            }
+         }
+         else if (NodeName(TypeDef) == IntegerTNode)
+            Decorate(T, TypeInteger);
+         else if (NodeName(TypeDef) == BooleanTNode)
+            Decorate(T, TypeBoolean);
+         else if (NodeName(TypeDef) == CharTNode)
+            Decorate(T, TypeChar);
+         else
+         {
+            Declaration = Lookup(NodeName(Child(TypeDef,1)), T);
+            if (Declaration != NullDeclaration)
+               Decorate(T, Decoration(Declaration));
+            else
+               Decorate(T, TypeInteger);
+         }
          break;
+      }
 
       case DclnsNode :
          for (Kid = 1; Kid <= NKids(T); Kid++)
@@ -341,15 +436,38 @@ void ProcessNode (TreeNode T)
          break;
 
       case DclnNode :
+      {
 
-	 Name1 = NodeName (Child(T, NKids(T)));
-         Type1 = Lookup (Name1,T);
-         for (Kid  = 1; Kid < NKids(T); Kid++)
+         TreeNode TypeNameNode = Child(T, NKids(T));
+         if (NodeName(TypeNameNode) == IntegerTNode)
+            Type1 = TypeInteger;
+         else if (NodeName(TypeNameNode) == BooleanTNode)
+            Type1 = TypeBoolean;
+         else if (NodeName(TypeNameNode) == CharTNode)
+            Type1 = TypeChar;
+         else
          {
-            DTEnter (NodeName(Child(Child(T,Kid),1)), Child(T,Kid), T);
-            Decorate (Child(T,Kid), Type1);
+            String TypeNameStr = NodeName(Child(TypeNameNode,1));
+            Declaration = Lookup(TypeNameStr, T);
+            if (Declaration == NullDeclaration)
+            {
+               ErrorHeader(T);
+               printf("UNKNOWN TYPE: ");
+               Write_String(stdout, TypeNameStr);
+               printf("\n\n");
+               Type1 = TypeInteger;
+            }
+            else
+               Type1 = Decoration(Declaration);
+         }
+
+         for (Kid = 1; Kid < NKids(T); Kid++)
+         {
+            DTEnter(NodeName(Child(Child(T,Kid),1)), Child(T,Kid), T);
+            Decorate(Child(T,Kid), Type1);
          }
          break;
+      }
 
       case BlockNode :
          for (Kid = 1; Kid <= NKids(T); Kid++)
@@ -357,33 +475,55 @@ void ProcessNode (TreeNode T)
          break;
 
       case AssignNode :
-         Type1 = Expression (Child(T,1));
-         Type2 = Expression (Child(T,2));
-         if (Type1 != Type2)
+      {
+         UserType LType = Expression (Child(T,1));
+         UserType RType = Expression (Child(T,2));
+         if (LType != RType)
          {
             ErrorHeader(T);
-            printf ("ASSIGNMENT TYPES DO NOT MATCH\n");
-            printf ("\n");
+            printf ("ASSIGNMENT TYPES DO NOT MATCH\n\n");
+         }
+         break;
+      }
+
+      /* ---- read statement: read(a, b, c) ---- */
+      case ReadNode :
+         for (Kid = 1; Kid <= NKids(T); Kid++)
+         {
+            /* Each child is a read_item node containing an identifier */
+            TreeNode ReadItem = Child(T, Kid);
+            UserType VarType = Expression(Child(ReadItem, 1));
+            if (VarType != TypeInteger && VarType != TypeChar)
+            {
+               ErrorHeader(ReadItem);
+               printf("READ ARGUMENT MUST BE TYPE INTEGER OR CHAR\n\n");
+            }
          }
          break;
 
       case OutputNode :
          for (Kid = 1; Kid <= NKids(T); Kid++)
-            if (Expression (Child(T,Kid)) != TypeInteger)
+         {
+            TreeNode OutChild = Child(T, Kid);
+            if (NodeName(OutChild) == StringNode)
+               ; /* string literal: always OK */
+            else
             {
-               ErrorHeader(T);
-               printf ("OUTPUT EXPRESSION MUST BE TYPE INTEGER\n");
-               printf ("\n");
+               UserType OutType = Expression(OutChild);
+               if (OutType != TypeInteger && OutType != TypeChar)
+               {
+                  ErrorHeader(T);
+                  printf ("OUTPUT EXPRESSION MUST BE TYPE INTEGER OR CHAR\n\n");
+               }
             }
+         }
          break;
 
       case IfNode :
          if (Expression (Child(T,1)) != TypeBoolean)
          {
             ErrorHeader(T);
-            printf ("CONTROL EXPRESSION OF 'IF' STMT");
-            printf (" IS NOT TYPE BOOLEAN\n");
-            printf ("\n");
+            printf ("CONTROL EXPRESSION OF 'IF' STMT IS NOT TYPE BOOLEAN\n\n");
          } 
          ProcessNode (Child(T,2));
          if (Rank(T) == 3)
@@ -394,31 +534,33 @@ void ProcessNode (TreeNode T)
          if (Expression (Child(T,1)) != TypeBoolean)
          {
             ErrorHeader(T);
-            printf ("WHILE EXPRESSION NOT OF TYPE BOOLEAN\n");
-            printf ("\n");
+            printf ("WHILE EXPRESSION NOT OF TYPE BOOLEAN\n\n");
          }
          ProcessNode (Child(T,2));
          break;
       
       case ForToNode :
       case ForDowntoNode :
-         if (Expression(Child(T, 1)) != TypeInteger) {
-             ErrorHeader(T);
-             printf("CONTROL VARIABLE OF 'FOR' STMT MUST BE TYPE INTEGER\n\n");
-         }
+      {
+         UserType ControlType = Expression(Child(T, 1));
+         UserType StartType = Expression(Child(T, 2));
+         UserType EndType = Expression(Child(T, 3));
          
-         if (Expression(Child(T, 2)) != TypeInteger) {
+         if (ControlType != TypeInteger && ControlType != TypeChar && !IsEnumeratedType(ControlType)) {
              ErrorHeader(T);
-             printf("STARTING EXPRESSION OF 'FOR' STMT MUST BE TYPE INTEGER\n\n");
+             printf("CONTROL VARIABLE OF 'FOR' STMT MUST BE TYPE INTEGER, CHAR, OR ENUMERATED TYPE\n\n");
          }
-         
-         if (Expression(Child(T, 3)) != TypeInteger) {
+         if (StartType != ControlType) {
              ErrorHeader(T);
-             printf("ENDING EXPRESSION OF 'FOR' STMT MUST BE TYPE INTEGER\n\n");
+             printf("STARTING EXPRESSION OF 'FOR' STMT MUST MATCH CONTROL VARIABLE TYPE\n\n");
          }
-         
+         if (EndType != ControlType) {
+             ErrorHeader(T);
+             printf("ENDING EXPRESSION OF 'FOR' STMT MUST MATCH CONTROL VARIABLE TYPE\n\n");
+         }
          ProcessNode(Child(T, 4));
          break;
+      }
       
       case RepeatNode :
          for (Kid = 1; Kid < NKids(T); Kid++) {
@@ -432,33 +574,54 @@ void ProcessNode (TreeNode T)
          break;
 
       case CaseNode :
-         if (Expression(Child(T, 1)) != TypeInteger) {
+      {
+         UserType CaseType = Expression(Child(T, 1));
+         if (!IsScalarType(CaseType))
+         {
             ErrorHeader(T);
-            printf("CASE EXPRESSION MUST BE TYPE INTEGER\n\n");
+            printf("CASE EXPRESSION MUST BE TYPE INTEGER, CHAR, BOOLEAN, OR ENUMERATED TYPE\n\n");
          }
-         
          for (Kid = 2; Kid < NKids(T); Kid++) {
              TreeNode Clause = Child(T, Kid);
-             if (Rank(Clause) == 3)
+             if (NodeName(Clause) == CaseClauseRangeNode)
+             {
+                Type1 = Expression(Child(Clause, 1));
+                Type2 = Expression(Child(Clause, 2));
+                if (Type1 != CaseType || Type2 != CaseType)
+                {
+                   ErrorHeader(Clause);
+                   printf("CASE RANGE VALUES MUST MATCH CASE EXPRESSION TYPE\n\n");
+                }
                 ProcessNode(Child(Clause, 3));
+             }
              else
+             {
+                Type1 = Expression(Child(Clause, 1));
+                if (Type1 != CaseType)
+                {
+                   ErrorHeader(Clause);
+                   printf("CASE VALUE MUST MATCH CASE EXPRESSION TYPE\n\n");
+                }
                 ProcessNode(Child(Clause, 2));
+             }
          }
-
          if (NodeName(Child(T, NKids(T))) != NullNode) {
              ProcessNode(Child(Child(T, NKids(T)), 1));
          }
          break;
+      }
 
       case SwapNode :
-         Type1 = Expression(Child(T,1));
-         Type2 = Expression(Child(T,2));
-         if (Type1 != Type2)
+      {
+         UserType ST1 = Expression(Child(T,1));
+         UserType ST2 = Expression(Child(T,2));
+         if (ST1 != ST2)
          {
             ErrorHeader(T);
             printf ("SWAP TYPES DO NOT MATCH\n\n");
          }
          break;
+      }
 
       case LoopNode :
          for (Kid = 1; Kid <= NKids(T); Kid++) {
