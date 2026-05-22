@@ -79,8 +79,9 @@ Output:
    Tree by applying the canonical rules for `let`, `where`, `fcn_form`,
    multi-parameter `lambda`, `within`, `@`, `and`, and `rec`.
 4. **CSE machine** — `CSEMachine` flattens the ST into control structures
-   (delta_0 … delta_n) and evaluates them with the 13 CSE rules, including the
-   `Y*`/eta rule for recursion. Built-in functions (`Print`, `Order`, `Stem`,
+   (delta_0 … delta_n) and evaluates them with the 11 CSE rules from the
+   lecture, plus the standard `Y*`/eta mechanism that makes `rec` execute.
+   Built-in functions (`Print`, `Order`, `Stem`,
    `Stern`, `Conc`, `Isinteger`, `Istruthvalue`, `Isstring`, `Istuple`,
    `Isfunction`, `Isdummy`, `Null`, `ItoS`) are supported.
 
