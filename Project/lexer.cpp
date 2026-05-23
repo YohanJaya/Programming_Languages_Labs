@@ -1,3 +1,5 @@
+
+
 #include "lexer.h"
 #include <stdexcept>
 #include <iostream>
@@ -23,7 +25,7 @@ char Lexer::peek(int offset) const {
 
 char Lexer::advance() {
     char c = src[pos++];
-    if (c == '\n') line++;
+    if (c == '\n') line++;  // track line number for error messages
     return c;
 }
 
@@ -57,6 +59,8 @@ Token Lexer::scanIdentifier() {
     while (!atEnd() && (isLetter(peek()) || isDigit(peek()) || peek() == '_')) {
         lexeme += advance();
     }
+    /* Check if the identifier is a reserved keyword.
+       If yes, return a KEYWORD token instead of IDENTIFIER. */
     if (keywords.count(lexeme)) {
         return Token(TokenType::KEYWORD, lexeme, startLine);
     }
@@ -75,7 +79,7 @@ Token Lexer::scanInteger() {
 Token Lexer::scanOperator() {
     int startLine = line;
     std::string lexeme;
-    // Operator_symbol+
+    // Operator_symbol+  (greedily consume all consecutive operator chars)
     while (!atEnd() && isOperatorSymbol(peek())) {
         lexeme += advance();
     }
@@ -188,6 +192,7 @@ std::vector<Token> Lexer::tokenize() {
                                  + std::string(1, c) + "' at line "
                                  + std::to_string(line));
     }
+    // Always append EOF token so the parser knows when input is done
     tokens.push_back(Token(TokenType::END_OF_FILE, "", line));
     return tokens;
 }

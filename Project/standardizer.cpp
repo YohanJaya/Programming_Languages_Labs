@@ -1,3 +1,5 @@
+
+
 #include "standardizer.h"
 #include <vector>
 #include <stdexcept>
@@ -19,7 +21,8 @@ Node *Standardizer::standardize(Node *root) {
     return root;
 }
 
-// Post-order traversal: standardize children first, then this node.
+/* Post-order traversal: standardize children first, then this node.
+   This ensures all sub-trees are already standard before we transform the parent. */
 void Standardizer::standardizeNode(Node *node) {
     if (!node) return;
 
@@ -31,7 +34,8 @@ void Standardizer::standardizeNode(Node *node) {
     const std::string &lbl = node->label;
 
     if (lbl == "let") {
-        // let(=(X,E), P) => gamma(lambda(X,P), E)
+        /* let(=(X,E), P) => gamma(lambda(X,P), E)
+           'let x = E in P' becomes 'apply (lambda x. P) to E' */
         Node *eq = node->child;        // '=' node
         Node *P  = eq->sibling;        // body
         Node *X  = eq->child;          // bound variable
@@ -42,13 +46,13 @@ void Standardizer::standardizeNode(Node *node) {
         X->sibling = P;
         P->sibling = nullptr;
 
-        node->label = "gamma";
+        node->label = "gamma";         // reuse this node as gamma
         node->child = lambda;
         lambda->sibling = E;
         E->sibling = nullptr;
     }
     else if (lbl == "where") {
-        // where(P, =(X,E)) => gamma(lambda(X,P), E)
+        // where(P, =(X,E)) => gamma(lambda(X,P), E)   (same as let, just different order)
         Node *P  = node->child;        // body
         Node *eq = P->sibling;         // '=' node
         Node *X  = eq->child;
@@ -65,7 +69,8 @@ void Standardizer::standardizeNode(Node *node) {
         E->sibling = nullptr;
     }
     else if (lbl == "fcn_form") {
-        // fcn_form(F, V1..Vn, E) => =(F, lambda(V1, lambda(V2, ... E)))
+        /* fcn_form(F, V1..Vn, E) => =(F, lambda(V1, lambda(V2, ... E)))
+           Currying: a multi-parameter function becomes nested single-param lambdas. */
         std::vector<Node *> kids;
         for (Node *c = node->child; c; c = c->sibling) kids.push_back(c);
         // kids[0] = F, kids[1..n] = V1..Vn, kids.back() = E
@@ -90,8 +95,9 @@ void Standardizer::standardizeNode(Node *node) {
         body->sibling = nullptr;
     }
     else if (lbl == "lambda") {
-        // Multi-parameter lambda(V1..Vn, E) =>
-        //   lambda(V1, lambda(V2, ... lambda(Vn, E)))
+        /* Multi-parameter lambda(V1..Vn, E) =>
+           lambda(V1, lambda(V2, ... lambda(Vn, E)))
+           Again currying: reduce to single-param lambdas only if needed. */
         std::vector<Node *> kids;
         for (Node *c = node->child; c; c = c->sibling) kids.push_back(c);
         if (kids.size() > 2) {
@@ -115,8 +121,9 @@ void Standardizer::standardizeNode(Node *node) {
         // If exactly 2 children (V, E) it is already standard.
     }
     else if (lbl == "within") {
-        // within(=(X1,E1), =(X2,E2)) =>
-        //   =(X2, gamma(lambda(X1,E2), E1))
+        /* within(=(X1,E1), =(X2,E2)) => =(X2, gamma(lambda(X1,E2), E1))
+           'X2 = E2 within X1 = E1' means X2 is computed using X1,
+           which is scoped to only this block. */
         Node *eq1 = node->child;
         Node *eq2 = eq1->sibling;
         Node *X1 = eq1->child;
@@ -140,7 +147,8 @@ void Standardizer::standardizeNode(Node *node) {
         gamma->sibling = nullptr;
     }
     else if (lbl == "@") {
-        // @(E1, N, E2) => gamma(gamma(N, E1), E2)
+        /* @(E1, N, E2) => gamma(gamma(N, E1), E2)
+           Infix call 'E1 @N E2' becomes '(N E1) E2' — N is applied to E1 first. */
         Node *E1 = node->child;
         Node *N  = E1->sibling;
         Node *E2 = N->sibling;
@@ -156,13 +164,13 @@ void Standardizer::standardizeNode(Node *node) {
         E2->sibling = nullptr;
     }
     else if (lbl == "and") {
-        // and(=(X1,E1) ... =(Xn,En)) =>
-        //   =( ,(X1..Xn), tau(E1..En) )
+        /* and(=(X1,E1) ... =(Xn,En)) => =( ,(X1..Xn), tau(E1..En) )
+           Simultaneous definitions are collected into a tuple binding. */
         std::vector<Node *> eqs;
         for (Node *c = node->child; c; c = c->sibling) eqs.push_back(c);
 
-        Node *comma = makeNode(",");
-        Node *tau   = makeNode("tau");
+        Node *comma = makeNode(",");   // tuple of variable names
+        Node *tau   = makeNode("tau"); // tuple of their values
         Node *commaTail = nullptr;
         Node *tauTail = nullptr;
 
@@ -186,7 +194,9 @@ void Standardizer::standardizeNode(Node *node) {
         tau->sibling = nullptr;
     }
     else if (lbl == "rec") {
-        // rec(=(X,E)) => =(X, gamma(Y*, lambda(X,E)))
+        /* rec(=(X,E)) => =(X, gamma(Y*, lambda(X,E)))
+           Recursive definition: use the Y* (fixed-point) combinator so the
+           function can refer to itself without the interpreter needing explicit recursion. */
         Node *eq = node->child;
         Node *X  = eq->child;
         Node *E  = X->sibling;
@@ -199,7 +209,7 @@ void Standardizer::standardizeNode(Node *node) {
         X->sibling = E;
         E->sibling = nullptr;
 
-        Node *ystar = makeNode("<Y*>");
+        Node *ystar = makeNode("<Y*>");  // Y* is the fixed-point combinator
 
         Node *gamma = makeNode("gamma");
         gamma->child = ystar;

@@ -1,3 +1,5 @@
+
+
 #include "lexer.h"
 #include "parser.h"
 #include "standardizer.h"
@@ -35,6 +37,7 @@ int main(int argc, char *argv[]) {
     bool printSt = false;
     std::string filename;
 
+    // Parse command-line flags
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "-ast") printAst = true;
@@ -50,11 +53,11 @@ int main(int argc, char *argv[]) {
     try {
         std::string source = readFile(filename);
 
-        // 1. Lexical analysis
+        // 1. Lexical analysis: break source text into tokens
         Lexer lexer(source);
         std::vector<Token> tokens = lexer.tokenize();
 
-        // 2. Parsing -> AST
+        // 2. Parsing -> AST: build the Abstract Syntax Tree from tokens
         Parser parser(tokens);
         Node *ast = parser.parse();
 
@@ -64,7 +67,7 @@ int main(int argc, char *argv[]) {
             return 0;
         }
 
-        // 3. Standardize -> ST
+        // 3. Standardize -> ST: transform AST into the standard form for the CSE machine
         Standardizer standardizer;
         Node *st = standardizer.standardize(ast);
 
@@ -73,11 +76,11 @@ int main(int argc, char *argv[]) {
             return 0;
         }
 
-        // 4. CSE machine evaluation
+        // 4. CSE machine evaluation: execute the standardized tree
         CSEMachine machine(st);
         machine.run();
-        // rpal.exe appends a newline after Print output; a program that prints
-        // nothing produces no output at all.
+        /* rpal.exe appends a newline after Print output;
+           a program that prints nothing produces no output at all. */
         if (machine.producedOutput()) {
             std::cout << std::endl;
         }

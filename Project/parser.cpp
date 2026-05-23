@@ -1,3 +1,5 @@
+
+
 #include "parser.h"
 #include <stdexcept>
 #include <iostream>
@@ -44,8 +46,9 @@ void Parser::expect(TokenType t, const std::string &what) {
     advance();
 }
 
-// Pop n nodes, chain them as siblings (preserving push order), attach under
-// a new parent node, then push that parent.
+/* Pop n nodes off the parse stack, link them as siblings (left to right),
+   attach as children of a new parent node, then push the parent.
+   This is the core tree-building step used after every grammar rule. */
 void Parser::buildTree(const std::string &label, int n) {
     Node *parent = makeNode(label);
     Node *children = nullptr; // build sibling chain
@@ -96,11 +99,11 @@ void Parser::E() {
         D();
         expectKeyword("in");
         E();
-        buildTree("let", 2);
+        buildTree("let", 2);  // let node has 2 children: definition and body
     } else if (isKeyword("fn")) {
         advance();
         int n = 0;
-        // Vb+
+        // Vb+  (one or more parameter bindings)
         do {
             Vb();
             n++;
@@ -135,6 +138,7 @@ void Parser::T() {
         Ta();
         n++;
     }
+    // Only wrap in 'tau' if there are multiple comma-separated elements (i.e., a tuple)
     if (n > 1) {
         buildTree("tau", n);
     }
@@ -160,7 +164,7 @@ void Parser::Tc() {
         Tc();
         expectOperator("|");
         Tc();
-        buildTree("->", 3);
+        buildTree("->", 3);  // 3 children: condition, then-branch, else-branch
     }
 }
 
@@ -235,7 +239,7 @@ void Parser::A() {
     } else if (isOperator("-")) {
         advance();
         At();
-        buildTree("neg", 1);
+        buildTree("neg", 1);  // unary minus becomes 'neg' node
     } else {
         At();
     }
@@ -290,7 +294,7 @@ void Parser::Ap() {
         if (peek().type != TokenType::IDENTIFIER) error("expected identifier after '@'");
         pushLeafIdentifier();
         R();
-        buildTree("@", 3);
+        buildTree("@", 3);  // infix function application: E1 @ fname E2
     }
 }
 
@@ -299,7 +303,8 @@ void Parser::Ap() {
 // (Function application by juxtaposition.)
 void Parser::R() {
     Rn();
-    // Keep applying while the next token can start an Rn.
+    /* Keep applying as long as the next token can start another Rn.
+       Each application creates a 'gamma' (function-apply) node in the AST. */
     while (peek().type == TokenType::IDENTIFIER ||
            peek().type == TokenType::INTEGER ||
            peek().type == TokenType::STRING ||
@@ -307,7 +312,7 @@ void Parser::R() {
            isKeyword("nil") || isKeyword("dummy") ||
            peek().type == TokenType::L_PAREN) {
         Rn();
-        buildTree("gamma", 2);
+        buildTree("gamma", 2);  // gamma = function application: rator + rand
     }
 }
 
@@ -375,7 +380,7 @@ void Parser::Dr() {
     if (isKeyword("rec")) {
         advance();
         Db();
-        buildTree("rec", 1);
+        buildTree("rec", 1);  // 'rec' marks a recursive definition
     } else {
         Db();
     }
@@ -392,9 +397,9 @@ void Parser::Db() {
         return;
     }
     if (peek().type == TokenType::IDENTIFIER) {
-        // Disambiguate between Vl '=' E  and  '<ID>' Vb+ '=' E (fcn_form).
-        // Look ahead: if the identifier is followed by '=' or ',', it is Vl.
-        // Otherwise (followed by another Vb start) it is a function form.
+        /* Look 1 token ahead to decide which rule applies:
+           - If next is '=' or ',', it's a variable list definition: Vl '=' E
+           - Otherwise it's a function form: ID Vb+ '=' E */
         const Token &next = peekAt(1);
         bool nextIsEq = (next.type == TokenType::OPERATOR && next.value == "=");
         bool nextIsComma = (next.type == TokenType::COMMA);
@@ -432,7 +437,7 @@ void Parser::Vb() {
         advance();
         if (peek().type == TokenType::R_PAREN) {
             advance();
-            st.push(makeNode("()"));
+            st.push(makeNode("()"));  // empty parameter list
         } else {
             Vl();
             expect(TokenType::R_PAREN, "')'");
@@ -454,6 +459,7 @@ void Parser::Vl() {
         pushLeafIdentifier();
         n++;
     }
+    // Only create a ',' node if there are multiple identifiers (tuple pattern)
     if (n > 1) {
         buildTree(",", n);
     }

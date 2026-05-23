@@ -1,3 +1,5 @@
+
+
 #include "cse_machine.h"
 #include <iostream>
 #include <sstream>
@@ -15,6 +17,8 @@ static bool startsWith(const std::string &s, const std::string &p) {
     return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
 }
 
+/* Convert a tree leaf node into a CSElement (the runtime value type).
+   Leaf labels are strings like "<ID:x>", "<INT:3>", etc. — we strip the tags. */
 CSElement CSEMachine::makeName(Node *node) {
     CSElement e;
     e.type = CSEType::NAME;
@@ -73,7 +77,7 @@ static bool isOperatorLabel(const std::string &l) {
 
 void CSEMachine::buildControlStructures() {
     controlStructures.clear();
-    controlStructures.emplace_back(); // delta_0
+    controlStructures.emplace_back(); // delta_0 is the top-level control structure
     preOrder(stRoot, 0);
 }
 
@@ -83,14 +87,14 @@ static void collectBound(Node *varNode, std::vector<std::string> &out, bool &mul
     multi = false;
     if (!varNode) return;
     if (varNode->label == ",") {
-        multi = true;
+        multi = true;  // tuple pattern: lambda (x, y) -> ...
         for (Node *c = varNode->child; c; c = c->sibling) {
             std::string nm = c->label;
             if (startsWith(nm, "<ID:")) nm = nm.substr(4, nm.size() - 5);
             out.push_back(nm);
         }
     } else if (varNode->label == "()") {
-        // no bound variables
+        // no bound variables (empty parameter list)
     } else {
         std::string nm = varNode->label;
         if (startsWith(nm, "<ID:")) nm = nm.substr(4, nm.size() - 5);
@@ -98,6 +102,9 @@ static void collectBound(Node *varNode, std::vector<std::string> &out, bool &mul
     }
 }
 
+/* Walk the standardized AST in pre-order and flatten it into numbered
+   control structures (arrays of CSElements). Each lambda/conditional
+   body gets its own control structure index (like a basic block). */
 void CSEMachine::preOrder(Node *node, int currentDelta) {
     if (!node) return;
     const std::string &l = node->label;
@@ -107,13 +114,13 @@ void CSEMachine::preOrder(Node *node, int currentDelta) {
         Node *V = node->child;
         Node *body = V->sibling;
 
-        // Create a new control structure for the body.
+        // Create a new control structure for the lambda body.
         int newIndex = (int)controlStructures.size();
         controlStructures.emplace_back();
 
         CSElement lam;
         lam.type = CSEType::LAMBDA;
-        lam.control = newIndex;
+        lam.control = newIndex;  // index of the body's control structure
         collectBound(V, lam.boundVars, lam.multiBound);
         controlStructures[currentDelta].push_back(lam);
 
@@ -132,7 +139,8 @@ void CSEMachine::preOrder(Node *node, int currentDelta) {
         int elseIndex = (int)controlStructures.size();
         controlStructures.emplace_back();
 
-        // Push delta_then, delta_else, beta, then predicate (in this order).
+        /* Push delta_then, delta_else, beta (branch instruction), then predicate.
+           At runtime: evaluate predicate, beta checks the bool and picks a branch. */
         CSElement dThen; dThen.type = CSEType::DELTA; dThen.thenIndex = thenIndex;
         CSElement dElse; dElse.type = CSEType::DELTA; dElse.thenIndex = elseIndex;
         CSElement beta;  beta.type = CSEType::BETA;
@@ -233,9 +241,7 @@ std::string CSEMachine::valueToString(const CSElement &v) {
     return v.name;
 }
 
-// ---------------------------------------------------------------------------
-// Operator application.
-// ---------------------------------------------------------------------------
+
 static long long toInt(const CSElement &e) {
     return std::stoll(e.name);
 }
@@ -292,8 +298,8 @@ CSElement CSEMachine::applyBinary(const std::string &op, const CSElement &a, con
     if (op == "or")  return boolValue((a.name == "true") || (b.name == "true"));
     if (op == "&")   return boolValue((a.name == "true") && (b.name == "true"));
     if (op == "aug") {
-        // a is a tuple; b is appended. If a is not a tuple (e.g. nil represented
-        // elsewhere), treat it as a singleton sequence.
+        /* 'aug' appends an element to a tuple.
+           If a is nil/empty tuple, start a new tuple; otherwise copy and extend. */
         CSElement res;
         res.type = CSEType::NAME; res.kind = "tuple";
         res.tupleElems = std::make_shared<std::vector<CSElement>>();
@@ -308,9 +314,7 @@ CSElement CSEMachine::applyBinary(const std::string &op, const CSElement &a, con
     throw std::runtime_error("Unknown binary operator: " + op);
 }
 
-// ---------------------------------------------------------------------------
-// The CSE machine evaluation loop.
-// ---------------------------------------------------------------------------
+
 void CSEMachine::run() {
     buildControlStructures();
     evaluate();
@@ -321,16 +325,13 @@ void CSEMachine::evaluate() {
     std::vector<CSElement> control;
     std::vector<CSElement> stack;
 
-    // Primitive environment e_0.
+    // Primitive environment e_0 (the global/empty environment).
     auto e0 = std::make_shared<Environment>(envCounter++, nullptr);
     std::shared_ptr<Environment> currentEnv = e0;
 
-    // Each env marker on the stack remembers the environment that was current
-    // BEFORE the call (so we can restore it on exit), as well as the new env.
-    // We store the new env in `.env` and the env to restore in a parallel field
-    // by reusing tupleElems? No — use a dedicated map keyed by marker id.
-    // Simpler: store restore-env pointer inside the marker via a side stack.
-    std::vector<std::shared_ptr<Environment>> envStack; // restore points
+    /* envStack tracks the environment to restore after each function call returns.
+       When we enter a closure, we push the old env here and restore it on exit. */
+    std::vector<std::shared_ptr<Environment>> envStack;
 
     // Initialise: control = [ env0marker, delta_0... ], stack = [ env0marker ].
     CSElement m0; m0.type = CSEType::ENV_MARKER; m0.envIndex = e0->index; m0.env = e0;
@@ -338,10 +339,9 @@ void CSEMachine::evaluate() {
     stack.push_back(m0);
     envStack.push_back(e0);
 
-    // Load a control structure onto the live control stack. Control structures
-    // are stored in preorder. We pop from the back, so pushing them in forward
-    // order leaves the LAST element on top (which is evaluated first), giving
-    // the correct operand-before-operator evaluation order.
+    /* loadControl copies a control structure (by index) onto the live control vector.
+       Elements are pushed in forward order so the LAST element ends up on top,
+       which is evaluated first — this matches the pre-order encoding. */
     auto loadControl = [&](int index) {
         auto &cs = controlStructures[index];
         for (auto &el : cs) control.push_back(el);
@@ -358,6 +358,8 @@ void CSEMachine::evaluate() {
     // Load the body of delta_0 on top of the initial environment marker.
     loadControl(0);
 
+    /* Main CSE machine loop. Each iteration pops one element from the control
+       and handles it according to the CSE machine rules. */
     while (!control.empty()) {
         CSElement c = control.back();
         control.pop_back();
@@ -368,13 +370,13 @@ void CSEMachine::evaluate() {
             if (c.kind == "id") {
                 CSElement val;
                 if (currentEnv->lookup(c.name, val)) {
-                    stack.push_back(val);
+                    stack.push_back(val);  // found in environment — push its value
                 } else {
                     // Unbound name: treat as a built-in / free function name.
                     stack.push_back(c);
                 }
             } else {
-                stack.push_back(c);
+                stack.push_back(c);  // literals (int, str, bool) go straight to stack
             }
             break;
         }
@@ -392,21 +394,23 @@ void CSEMachine::evaluate() {
         }
 
         case CSEType::LAMBDA: {
-            // Rule 2: stack a closure capturing the current environment.
+            // Rule 2: stack a closure — capture the lambda + current environment.
             CSElement clo = c;
-            clo.env = currentEnv;
+            clo.env = currentEnv;  // closure = code + env snapshot
             stack.push_back(clo);
             break;
         }
 
         case CSEType::GAMMA: {
-            CSElement rator = stack.back(); stack.pop_back();
+            CSElement rator = stack.back(); stack.pop_back();  // the function
 
             if (rator.type == CSEType::LAMBDA) {
-                // Rule 4 / 11: apply closure -> new environment.
-                CSElement rand = stack.back(); stack.pop_back();
+                // Rule 4 / 11: apply closure -> create a new environment.
+                CSElement rand = stack.back(); stack.pop_back();  // the argument
                 auto newEnv = std::make_shared<Environment>(envCounter++, rator.env);
 
+                /* Bind parameter(s) in the new environment.
+                   multiBound = true means the parameter is a tuple pattern (x, y). */
                 if (rator.multiBound) {
                     if (rand.tupleElems) {
                         for (size_t i = 0; i < rator.boundVars.size(); ++i) {
@@ -419,18 +423,19 @@ void CSEMachine::evaluate() {
                     newEnv->bindings[rator.boundVars[0]] = rand;
                 }
 
+                // Push an environment marker so we know when this call frame ends.
                 CSElement marker; marker.type = CSEType::ENV_MARKER;
                 marker.envIndex = newEnv->index; marker.env = newEnv;
 
                 control.push_back(marker);
-                loadControl(rator.control);
+                loadControl(rator.control);  // load the lambda body
                 stack.push_back(marker);
 
-                envStack.push_back(currentEnv); // remember where to return
+                envStack.push_back(currentEnv); // save caller's env
                 currentEnv = newEnv;
             }
             else if (rator.type == CSEType::NAME && rator.kind == "ystar") {
-                // Rule 12: Y* applied to a lambda -> eta.
+                // Rule 12: Y* applied to a lambda -> eta (lazy self-application).
                 CSElement lam = stack.back(); stack.pop_back();
                 CSElement eta;
                 eta.type = CSEType::ETA;
@@ -441,13 +446,8 @@ void CSEMachine::evaluate() {
                 stack.push_back(eta);
             }
             else if (rator.type == CSEType::ETA) {
-                // Rule 13: applying eta (recursion). Standard transformation:
-                //   Control: ... gamma          Stack: ... rand  eta
-                // becomes
-                //   Control: ... gamma gamma     Stack: ... rand  eta  lambda
-                // The first gamma applies lambda to eta (binding the recursive
-                // name to eta), producing the real (inner) closure; the second
-                // gamma then applies that closure to rand.
+                /* Eta rule for recursion: applying an eta forces the fixed-point expansion.
+                   This re-applies the lambda to itself (via Y*) before applying to the argument. */
                 CSElement lam;
                 lam.type = CSEType::LAMBDA;
                 lam.control = rator.control;
@@ -462,7 +462,7 @@ void CSEMachine::evaluate() {
                 stack.push_back(lam);   // lambda -> rator for the first gamma
             }
             else if (rator.type == CSEType::NAME && rator.kind == "tuple") {
-                // Tuple selection: t i.
+                // Tuple selection: t i  (1-based index).
                 CSElement idx = stack.back(); stack.pop_back();
                 long long i = toInt(idx);
                 if (!rator.tupleElems || i < 1 || i > (long long)rator.tupleElems->size())
@@ -481,12 +481,12 @@ void CSEMachine::evaluate() {
         }
 
         case CSEType::TAU: {
+            /* TAU: pop tauN values from the stack and bundle them into a tuple.
+               Values were pushed in left-to-right order, so index 0 is on top. */
             CSElement tup;
             tup.type = CSEType::NAME; tup.kind = "tuple";
             tup.tupleElems = std::make_shared<std::vector<CSElement>>();
             tup.tupleElems->resize(c.tauN);
-            // Elements were pushed e_n .. e_1 (e_1 on top), so the first value
-            // popped is e_1 which belongs at index 0.
             for (int i = 0; i < c.tauN; ++i) {
                 (*tup.tupleElems)[i] = stack.back();
                 stack.pop_back();
@@ -496,9 +496,8 @@ void CSEMachine::evaluate() {
         }
 
         case CSEType::BETA: {
-            // Conditional. The boolean is on the stack; the two delta refs were
-            // pushed on the control just before beta as: dThen, dElse, beta.
-            // So control top now is dElse, then dThen.
+            /* BETA: conditional branch. Pop the boolean result, then pick
+               the delta_then or delta_else control structure to load next. */
             CSElement boolVal = stack.back(); stack.pop_back();
             CSElement dElse = control.back(); control.pop_back();
             CSElement dThen = control.back(); control.pop_back();
@@ -508,13 +507,13 @@ void CSEMachine::evaluate() {
         }
 
         case CSEType::DELTA: {
-            loadControl(c.thenIndex);
+            loadControl(c.thenIndex);  // should not normally be reached directly
             break;
         }
 
         case CSEType::ENV_MARKER: {
-            // Rule 5: exit environment. The result is on top of the stack and
-            // the matching marker is directly beneath it.
+            /* ENV_MARKER: function call is done. Save the return value,
+               remove the marker from the stack, restore the caller's environment. */
             CSElement result = stack.back(); stack.pop_back();
             // Pop the marker (should be on top now).
             if (!stack.empty() && stack.back().type == CSEType::ENV_MARKER) {
@@ -536,16 +535,14 @@ void CSEMachine::evaluate() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Built-in functions (matching rpal.exe).
-// ---------------------------------------------------------------------------
+
 bool CSEMachine::applyBuiltin(const std::string &fn, std::vector<CSElement> &stack) {
     CSElement arg = stack.back(); stack.pop_back();
 
     if (fn == "Print" || fn == "print") {
         std::cout << valueToString(arg);
         didPrint = true;
-        // Print returns dummy.
+        // Print returns dummy (like void in C++).
         CSElement d; d.type = CSEType::NAME; d.kind = "dummy"; d.name = "dummy";
         stack.push_back(d);
         return true;
@@ -587,17 +584,18 @@ bool CSEMachine::applyBuiltin(const std::string &fn, std::vector<CSElement> &sta
         return true;
     }
     if (fn == "Conc" || fn == "conc") {
-        // Conc is curried: Conc s1 s2. First application returns a partial.
-        // We model it by pushing back a special partial closure represented as
-        // a tuple-tagged name. Simpler: handle via a partial built-in marker.
+        /* Conc is curried: Conc str1 str2 concatenates.
+           First call stores str1 in a tagged partial-application value,
+           second call finishes and returns the concatenated string. */
         CSElement partial;
         partial.type = CSEType::NAME;
         partial.kind = "id";
-        partial.name = "__Conc1__" + arg.name; // encode first string
+        partial.name = "__Conc1__" + arg.name; // encode first string in the name
         stack.push_back(partial);
         return true;
     }
     if (startsWith(fn, "__Conc1__")) {
+        // Second call to Conc: extract stored first string and concatenate.
         std::string first = fn.substr(std::string("__Conc1__").size());
         stack.push_back(strValue(first + arg.name));
         return true;
